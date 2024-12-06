@@ -1,0 +1,30 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": {
+      "value": "${AZURE_ENV_NAME}"
+    },
+    "location": {
+      "value": "${AZURE_LOCATION}"
+    },
+    "principalId": {
+      "value": "${AZURE_PRINCIPAL_ID}"
+    },
+    "openAiResourceName": {
+      "value": "${AZURE_OPENAI_RESOURCE}"
+    },
+    "openAiResourceGroupName": {
+      "value": "${AZURE_OPENAI_RESOURCE_GROUP}"
+    },
+    "openAiSkuName": {
+      "value": "${AZURE_OPENAI_SKU_NAME}"
+    },
+    "authClientId": {
+      "value": "${AUTH_CLIENT_ID}"
+    },
+    "authClientSecret": {
+      "value": "${AUTH_CLIENT_SECRET}"
+    }
+  }
+}
