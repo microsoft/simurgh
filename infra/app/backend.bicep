@@ -2,10 +2,6 @@ param appServiceName string
 param location string = resourceGroup().location
 param tags object = {}
 param appServicePlanName string
-param authClientId string
-@secure()
-param authClientSecret string
-param authIssuerUri string
 param serviceName string = 'backend'
 param appSettings object = {}
 
@@ -31,9 +27,6 @@ module backend '../core/host/appservice.bicep' = {
     appServicePlanId: appServicePlan.outputs.id
     scmDoBuildDuringDeployment: true
     managedIdentity: true
-    authClientSecret: authClientSecret
-    authClientId: authClientId
-    authIssuerUri: authIssuerUri
     appSettings: appSettings
   }
 }

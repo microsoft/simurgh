@@ -7,7 +7,7 @@ param environmentName string
 
 @minLength(1)
 @description('Primary location for all resources')
-@allowed(['eastus','westus'])
+@allowed(['eastus', 'westus'])
 param location string
 
 param appServicePlanName string = ''
@@ -25,11 +25,6 @@ param chatDeploymentName string = 'chat'
 @description('Name of the chat completion model')
 param chatModelName string = 'gpt-4o'
 param chatModelVersion string = '2024-05-13'
-
-// Used for the Azure AD application
-param authClientId string
-@secure()
-param authClientSecret string
 
 // Used for Cosmos DB
 @description('Is chat history enabled')
@@ -71,21 +66,38 @@ module monitoring 'core/monitor/monitoring.bicep' = {
     location: location
     tags: tags
     includeApplicationInsights: true
-    logAnalyticsName: !empty(logAnalyticsName) ? logAnalyticsName : '${abbrs.operationalInsightsWorkspaces}${resourceToken}'
-    applicationInsightsName: !empty(applicationInsightsName) ? applicationInsightsName : '${abbrs.insightsComponents}${resourceToken}'
-    applicationInsightsDashboardName: !empty(applicationInsightsDashboardName) ? applicationInsightsDashboardName : '${abbrs.portalDashboards}${resourceToken}'
+    logAnalyticsName: !empty(logAnalyticsName)
+      ? logAnalyticsName
+      : '${abbrs.operationalInsightsWorkspaces}${resourceToken}'
+    applicationInsightsName: !empty(applicationInsightsName)
+      ? applicationInsightsName
+      : '${abbrs.insightsComponents}${resourceToken}'
+    applicationInsightsDashboardName: !empty(applicationInsightsDashboardName)
+      ? applicationInsightsDashboardName
+      : '${abbrs.portalDashboards}${resourceToken}'
   }
 }
 
 // The application frontend
-var appServiceName = !empty(backendServiceName) ? backendServiceName : '${abbrs.webSitesAppService}backend-${resourceToken}'
-var authIssuerUri = '${environment().authentication.loginEndpoint}${tenant().tenantId}/v2.0'
+var appServiceName = !empty(backendServiceName)
+  ? backendServiceName
+  : '${abbrs.webSitesAppService}backend-${resourceToken}'
 
-var cosmosSettings = (isHistoryEnabled) ? {
-  CosmosOptions__CosmosEndpoint: cosmos.outputs.endpoint
-  CosmosOptions__CosmosDatabaseId: 'db_conversation_history'
-  CosmosOptions__CosmosContainerId: 'conversations'
-} : {}
+var history_database_id = 'db_conversation_history'
+var history_container_id = 'conversations'
+var structured_data_database_id = 'db_structured_data'
+var structured_data_container_id = 'documents'
+
+var cosmosSettings = (isHistoryEnabled)
+  ? {
+      ChatHistoryCosmosOptions__CosmosEndpoint: cosmos.outputs.endpoint
+      ChatHistoryCosmosOptions__CosmosDatabaseId: history_database_id
+      ChatHistoryCosmosOptions__CosmosContainerId: history_container_id
+      StructuredDataCosmosOptions__CosmosEndpoint: cosmos.outputs.endpoint
+      StructuredDataCosmosOptions__CosmosDatabaseId: structured_data_database_id
+      StructuredDataCosmosOptions__CosmosContainerId: structured_data_container_id
+    }
+  : {}
 
 var backendAppSettings = union(cosmosSettings, {
   // frontend settings
@@ -107,11 +119,10 @@ module backend 'app/backend.bicep' = {
   params: {
     location: location
     tags: tags
-    appServicePlanName: !empty(appServicePlanName) ? appServicePlanName : '${abbrs.webServerFarms}backend-${resourceToken}'
+    appServicePlanName: !empty(appServicePlanName)
+      ? appServicePlanName
+      : '${abbrs.webServerFarms}backend-${resourceToken}'
     appServiceName: appServiceName
-    authClientSecret: authClientSecret
-    authClientId: authClientId
-    authIssuerUri: authIssuerUri
     appSettings: backendAppSettings
   }
 }
@@ -141,17 +152,41 @@ module openAi 'core/ai/cognitiveservices.bicep' = {
 }
 
 // The chat history database
-module cosmos 'db.bicep' = if (isHistoryEnabled) {
+module cosmos './app/db.bicep' = if (isHistoryEnabled) {
   name: 'cosmos'
   scope: resourceGroup
   params: {
     accountName: !empty(cosmosAccountName) ? cosmosAccountName : '${abbrs.documentDBDatabaseAccounts}${resourceToken}'
     location: location
     tags: tags
+    databases: [
+      {
+        name: history_database_id
+        kind: 'GlobalDocumentDB'
+        containers: [
+          {
+            name: history_container_id
+            id: history_container_id
+            partitionKey: '/userId'
+          }
+        ]
+      }
+      {
+        name: structured_data_database_id
+        kind: 'GlobalDocumentDB'
+        containers: [
+          {
+            name: structured_data_container_id
+            id: structured_data_container_id
+            partitionKey: '/id'
+          }
+        ]
+      }
+    ]
   }
 }
 
-module cosmosRoleAssign 'db-rbac.bicep' = if (isHistoryEnabled) {
+module cosmosRoleAssign './app/db-rbac.bicep' = if (isHistoryEnabled) {
   name: 'cosmos-role-assign'
   scope: resourceGroup
   params: {
@@ -202,19 +237,16 @@ module aiDeveloperRoleBackend 'core/security/role.bicep' = {
   }
 }
 
-output AZURE_LOCATION string = location
-output AZURE_TENANT_ID string = tenant().tenantId
-output AZURE_RESOURCE_GROUP string = resourceGroup.name
+output AzureOpenAIOptions__Endpoint string = openAi.outputs.endpoint
+output AzureOpenAIOptions__Deployment string = chatDeploymentName
+output AZURE_TENANT_ID string = subscription().tenantId
 
-output BACKEND_URI string = backend.outputs.uri
+// cosmos history options
+output ChatHistoryCosmosOptions__CosmosEndpoint string = cosmos.outputs.endpoint
+output ChatHistoryCosmosOptions__CosmosDatabaseId string = history_database_id
+output ChatHistoryCosmosOptions__CosmosContainerId string = history_container_id
 
-// openai
-output AZURE_OPENAI_RESOURCE string = openAi.outputs.name
-output AZURE_OPENAI_RESOURCE_GROUP string = openAiResourceGroup.name
-output AZURE_OPENAI_ENDPOINT string = openAi.outputs.endpoint
-output AZURE_OPENAI_CHAT_NAME string = chatDeploymentName
-output AZURE_OPENAI_CHAT_MODEL string = chatModelName
-output AZURE_OPENAI_SKU_NAME string = openAi.outputs.skuName
-output AZURE_OPENAI_KEY string = openAi.outputs.key
-
-output AUTH_ISSUER_URI string = authIssuerUri
+// cosmos structured data options
+output StructuredDataCosmosOptions__CosmosEndpoint string = cosmos.outputs.endpoint
+output StructuredDataCosmosOptions__CosmosDatabaseId string = structured_data_database_id
+output StructuredDataCosmosOptions__CosmosContainerId string = structured_data_container_id

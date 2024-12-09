@@ -1,5 +1,4 @@
 ﻿using ChatApp.Server.Models;
-using ChatApp.Server.Plugins;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
@@ -33,8 +32,6 @@ public class ChatCompletionService
 
     public async Task<Message[]> CompleteChatAsync(Message[] messages)
     {
-        _kernel.Plugins.AddFromType<LightsPlugin>(serviceProvider: _kernel.Services);
-
         var history = new ChatHistory(MemberAssistantInstructions);
 
         messages = messages.Where(m => !string.IsNullOrWhiteSpace(m.Id)).ToArray();
@@ -71,19 +68,28 @@ public class ChatCompletionService
 
     public async Task<string> GenerateTitleAsync(List<Message> messages)
     {
-        // Create a conversation string from the messages
-        string conversationText = string.Join(" ", messages.Select(m => m.Role + " " + m.Content));
+        try
+        {
+            // Create a conversation string from the messages
+            string conversationText = string.Join(" ", messages.Select(m => m.Role + " " + m.Content));
 
-        // Load prompt yaml
-        var promptYaml = File.ReadAllText(Path.Combine(_promptDirectory, "TextPlugin", "SummarizeConversation.yaml"));
-        var function = _kernel.CreateFunctionFromPromptYaml(promptYaml);
+            // Load prompt yaml
+            var promptYaml = File.ReadAllText(Path.Combine(_promptDirectory, "TextPlugin", "SummarizeConversation.yaml"));
+            var function = _kernel.CreateFunctionFromPromptYaml(promptYaml);
 
-        // Invoke the function against the conversation text
-        var result = await _kernel.InvokeAsync(function, new() { { "history", conversationText } });
+            // Invoke the function against the conversation text
+            var result = await _kernel.InvokeAsync(function, new() { { "history", conversationText } });
 
-        string completion = result.ToString()!;
+            var factory = _kernel.Services.GetService<IHttpClientFactory>();
 
-        return completion;
+            string completion = result.ToString()!;
+
+            return completion;
+        }
+        catch (Exception ex)
+        {
+            throw;
+        }
     }
 
     internal static AuthorRole ParseRole(string roleName)

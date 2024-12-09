@@ -14,11 +14,13 @@ internal class CosmosConversationService
     private readonly string _databaseId;
     private readonly string _containerId;
 
-    public CosmosConversationService(CosmosClient cosmosClient, IOptions<CosmosOptions> cosmosOptions)
+    public CosmosConversationService(CosmosClient cosmosClient, IOptionsSnapshot<CosmosOptions> cosmosOptions)
     {
         _cosmosClient = cosmosClient;
-        _databaseId = cosmosOptions.Value.CosmosDatabaseId;
-        _containerId = cosmosOptions.Value.CosmosContainerId;
+
+        var chatHistoryOptions = cosmosOptions.Get("ChatHistory");
+        _databaseId = chatHistoryOptions.CosmosDatabaseId;
+        _containerId = chatHistoryOptions.CosmosContainerId;
         _database = _cosmosClient.GetDatabase(_databaseId);
         _container = _cosmosClient.GetContainer(_databaseId, _containerId);
     }

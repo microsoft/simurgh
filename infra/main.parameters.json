@@ -19,12 +19,6 @@
     },
     "openAiSkuName": {
       "value": "${AZURE_OPENAI_SKU_NAME}"
-    },
-    "authClientId": {
-      "value": "${AUTH_CLIENT_ID}"
-    },
-    "authClientSecret": {
-      "value": "${AUTH_CLIENT_SECRET}"
     }
   }
 }
