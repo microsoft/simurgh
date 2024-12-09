@@ -3,6 +3,7 @@ using Microsoft.Azure.Cosmos;
 using System.ComponentModel;
 using Microsoft.Extensions.Options;
 using ChatApp.Server.Models.Options;
+using System.Dynamic;
 
 namespace ChatApp.Server.Plugins;
 
@@ -31,6 +32,8 @@ public class CosmosDBPlugin
     public async Task<List<dynamic>> CosmosQueryAsync([Description("The query to run")] string query)
     {
         var queryDefinition = new QueryDefinition(query);
+        
+        // TODO: Double check to make sure the query is safe
         var queryResultSetIterator = _container.GetItemQueryIterator<ExpandoObject>(queryDefinition);
 
         List<dynamic> results = new List<dynamic>();
