@@ -12,6 +12,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		.editorconfig = .editorconfig
 	EndProjectSection
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CsvDataUploader", "CsvDataUploader\CsvDataUploader.csproj", "{C27C5086-6B88-41FA-93D5-2BE0A9527643}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{9A7D4BE5-F4BE-44D1-BBD0-BD5F9093C193}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9A7D4BE5-F4BE-44D1-BBD0-BD5F9093C193}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9A7D4BE5-F4BE-44D1-BBD0-BD5F9093C193}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C27C5086-6B88-41FA-93D5-2BE0A9527643}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C27C5086-6B88-41FA-93D5-2BE0A9527643}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C27C5086-6B88-41FA-93D5-2BE0A9527643}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C27C5086-6B88-41FA-93D5-2BE0A9527643}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
