@@ -151,7 +151,7 @@ export const AppStateProvider: React.FC<AppStateProviderProps> = ({ children }) 
             frontendSettings()
                 .then(response => {
                     let settings = response as FrontendSettings;
-                    // navigation.setParams({ param: value })
+                    document.title = settings!.ui!.title!;
                     dispatch({ type: 'FETCH_FRONTEND_SETTINGS', payload: settings });
                     dispatch({ type: 'SET_HISTORY_ENABLED', payload: settings!.history_enabled! });
                 })
