@@ -1,5 +1,8 @@
 using Microsoft.SemanticKernel;
 using Microsoft.Azure.Cosmos;
+using System.ComponentModel;
+using Microsoft.Extensions.Options;
+using ChatApp.Server.Models.Options;
 
 namespace ChatApp.Server.Plugins;
 
@@ -7,7 +10,7 @@ public class CosmosDBPlugin
 {
     private readonly CosmosClient _cosmosClient;
     private readonly Database _database;
-    private readonly Container _container;
+    private readonly Microsoft.Azure.Cosmos.Container _container;
     private readonly string _databaseId;
     private readonly string _containerId;
 
