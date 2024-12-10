@@ -32,6 +32,7 @@ try
     {
         IDictionary<string, object> recordDict = (IDictionary<string, object>)record;
         recordDict["id"] = Guid.NewGuid().ToString();
+        recordDict["partitionKey"] = "2024 1H NPS Individual Responses";
 
         foreach (var key in recordDict.Keys.ToList())
         {
@@ -42,7 +43,7 @@ try
             }
         }
 
-        tasks.Add(container.CreateItemAsync(recordDict, new PartitionKey(recordDict["id"].ToString())));
+        tasks.Add(container.CreateItemAsync(recordDict, new PartitionKey(recordDict["partitionKey"].ToString())));
 
         // Process in batches of 10
         if (tasks.Count >= 10)
