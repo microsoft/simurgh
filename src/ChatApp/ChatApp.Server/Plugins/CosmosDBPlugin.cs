@@ -10,20 +10,24 @@ namespace ChatApp.Server.Plugins;
 public class CosmosDBPlugin
 {
     private readonly CosmosClient _cosmosClient;
-    private readonly Database _database;
-    private readonly Microsoft.Azure.Cosmos.Container _container;
+    private Database _database;
+    private Microsoft.Azure.Cosmos.Container _container;
     private readonly string _databaseId;
     private readonly string _containerId;
 
-    public CosmosDBPlugin(CosmosClient cosmosClient, IOptionsSnapshot<CosmosOptions> cosmosOptions)
+    public CosmosDBPlugin(CosmosClient cosmosClient, IOptions<CosmosOptions> cosmosOptions)
     {
         _cosmosClient = cosmosClient;
 
-        var structuredDataOptions = cosmosOptions.Get("StructuredData");
-        _databaseId = structuredDataOptions.CosmosDatabaseId;
-        _containerId = structuredDataOptions.CosmosContainerId;
-        _database = _cosmosClient.GetDatabase(_databaseId);
-        _container = _cosmosClient.GetContainer(_databaseId, _containerId);
+        _databaseId = cosmosOptions.Value.CosmosDatabaseId;
+        _containerId = cosmosOptions.Value.CosmosStructuredDataContainerId;
+
+        var dbResponse = _cosmosClient.CreateDatabaseIfNotExistsAsync(_databaseId).Result;
+        _database = dbResponse.Database;
+        // splitting 1k throughput across history container and structured data container
+        // todo: parameterize throughput and partition key as configuration
+        var containerResponse = _database.CreateContainerIfNotExistsAsync(_containerId, "/partitionKey", 400).Result;
+        _container = containerResponse.Container;
     }
 
     [KernelFunction("cosmos_query")]
@@ -32,7 +36,7 @@ public class CosmosDBPlugin
     public async Task<List<dynamic>> CosmosQueryAsync([Description("The query to run")] string query)
     {
         var queryDefinition = new QueryDefinition(query);
-        
+
         // TODO: Double check to make sure the query is safe
         var queryResultSetIterator = _container.GetItemQueryIterator<ExpandoObject>(queryDefinition);
 
@@ -49,5 +53,4 @@ public class CosmosDBPlugin
 
         return results;
     }
-
 }
