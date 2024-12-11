@@ -18,8 +18,9 @@ internal static class ChatAppExtensions
     {
         // FrontendSettings class needs work on json serialization before this is useful...
         services.AddOptions<FrontendOptions>().Bind(config.GetSection(nameof(FrontendOptions)));
-        services.AddOptions<CosmosOptions>().Bind(config.GetSection(nameof(CosmosOptions)));
         services.AddOptions<AzureOpenAIOptions>().Bind(config.GetSection(nameof(AzureOpenAIOptions)));
+        var stuff = config.GetSection(nameof(CosmosOptions));
+        services.AddOptions<CosmosOptions>().Bind(config.GetSection(nameof(CosmosOptions)));
     }
 
     internal static void AddChatAppServices(this IServiceCollection services, IConfiguration config)
@@ -30,7 +31,6 @@ internal static class ChatAppExtensions
             : new DefaultAzureCredential(new DefaultAzureCredentialOptions { TenantId = config["AZURE_TENANT_ID"] });
 
         services.AddScoped<ChatCompletionService>();
-
         services.AddSingleton(services => new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
         var isChatEnabled = frontendSettings?.HistoryEnabled ?? false;
@@ -39,31 +39,31 @@ internal static class ChatAppExtensions
         {
             services.AddSingleton(services =>
             {
-                var cosmosOptions = services.GetRequiredService<IOptions<CosmosOptions>>() ?? throw new Exception($"{nameof(CosmosOptions)} is required in settings.");
+                var cosmosOptions = services.GetRequiredService<IOptionsMonitor<CosmosOptions>>() ?? throw new Exception($"{nameof(CosmosOptions)} is required in settings.");
 
-                if (!string.IsNullOrWhiteSpace(cosmosOptions.Value.ConnectionString))
+                if (!string.IsNullOrWhiteSpace(cosmosOptions.CurrentValue.ConnectionString))
                 {
                     // use conn str
-                    return new CosmosClientBuilder(cosmosOptions.Value.ConnectionString)
+                    return new CosmosClientBuilder(cosmosOptions.CurrentValue.ConnectionString)
                   .WithSerializerOptions(new CosmosSerializationOptions { PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase })
                   .WithConnectionModeGateway()
                   .Build();
                 }
 
-                ArgumentException.ThrowIfNullOrWhiteSpace(cosmosOptions.Value.CosmosEndpoint);
+                ArgumentException.ThrowIfNullOrWhiteSpace(cosmosOptions.CurrentValue.CosmosEndpoint);
 
-                if (!string.IsNullOrWhiteSpace(cosmosOptions.Value.CosmosKey))
+                if (!string.IsNullOrWhiteSpace(cosmosOptions.CurrentValue.CosmosKey))
                 {
-                    ArgumentException.ThrowIfNullOrWhiteSpace(cosmosOptions.Value.CosmosEndpoint);
+                    ArgumentException.ThrowIfNullOrWhiteSpace(cosmosOptions.CurrentValue.CosmosEndpoint);
                     // use key base
-                    return new CosmosClientBuilder(cosmosOptions.Value.CosmosEndpoint, new AzureKeyCredential(cosmosOptions.Value.CosmosKey))
+                    return new CosmosClientBuilder(cosmosOptions.CurrentValue.CosmosEndpoint, new AzureKeyCredential(cosmosOptions.CurrentValue.CosmosKey))
                       .WithSerializerOptions(new CosmosSerializationOptions { PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase })
                       .WithConnectionModeGateway()
                       .Build();
                 }
 
                 // use managed identity
-                return new CosmosClientBuilder(cosmosOptions.Value.CosmosEndpoint, defaultAzureCreds)
+                return new CosmosClientBuilder(cosmosOptions.CurrentValue.CosmosEndpoint, defaultAzureCreds)
                     .WithSerializerOptions(new CosmosSerializationOptions { PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase })
                     .WithConnectionModeGateway()
                     .Build();
@@ -77,8 +77,7 @@ internal static class ChatAppExtensions
             // Get our dependencies
             var jsonOptions = services.GetRequiredService<JsonSerializerOptions>();
             var aoaiOpts = services.GetRequiredService<IOptionsMonitor<AzureOpenAIOptions>>();
-            var aoaiOptions = aoaiOpts.CurrentValue;
-            // todo: add watcher to change out ChatCompletionService when options change
+            var cosmosOptions = services.GetRequiredService<IOptions<CosmosOptions>>();
 
             // Create the KernelBuilder
             var builder = Kernel.CreateBuilder();
@@ -86,12 +85,12 @@ internal static class ChatAppExtensions
             // register dependencies with Kernel services collection
             builder.Services.AddLogging(services => services.AddConsole().SetMinimumLevel(LogLevel.Trace));
             builder.Services.AddSingleton(config);
+            builder.Services.AddSingleton(cosmosOptions);
+            builder.Services.AddSingleton(aoaiOpts);
             builder.Services.AddSingleton(jsonOptions);
 
             builder.Services.AddSingleton(services =>
             {
-                var cosmosOptions = services.GetRequiredService<IOptions<CosmosOptions>>() ?? throw new Exception($"{nameof(CosmosOptions)} is required in settings.");
-
                 if (!string.IsNullOrWhiteSpace(cosmosOptions.Value.ConnectionString))
                 {
                     // use conn str
@@ -120,7 +119,7 @@ internal static class ChatAppExtensions
                     .Build();
             });
 
-            if (string.IsNullOrWhiteSpace(aoaiOptions.APIKey))
+            if (string.IsNullOrWhiteSpace(aoaiOpts.CurrentValue.APIKey))
             {
                 // managed identity
                 var defaultAzureCreds = string.IsNullOrEmpty(config["AZURE_TENANT_ID"])
@@ -128,14 +127,14 @@ internal static class ChatAppExtensions
                 : new DefaultAzureCredential(new DefaultAzureCredentialOptions { TenantId = config["AZURE_TENANT_ID"] });
 
 #pragma warning disable SKEXP0010 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-                builder.AddAzureOpenAIChatCompletion(aoaiOptions.Deployment, aoaiOptions.Endpoint, defaultAzureCreds);
+                builder.AddAzureOpenAIChatCompletion(aoaiOpts.CurrentValue.Deployment, aoaiOpts.CurrentValue.Endpoint, defaultAzureCreds);
 #pragma warning restore SKEXP0010 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
             }
             else
             {
                 // api key
 #pragma warning disable SKEXP0010 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-                builder.AddAzureOpenAIChatCompletion(aoaiOptions.Deployment, aoaiOptions.Endpoint, aoaiOptions.APIKey);
+                builder.AddAzureOpenAIChatCompletion(aoaiOpts.CurrentValue.Deployment, aoaiOpts.CurrentValue.Endpoint, aoaiOpts.CurrentValue.APIKey);
 #pragma warning restore SKEXP0010 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
             }
 

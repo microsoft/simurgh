@@ -30,7 +30,23 @@ internal class CosmosConversationService
         _database = dbResponse.Database;
         // splitting 1k throughput across history container and structured data container
         // todo: parameterize throughput and partition key as configuration
-        var containerResponse = _database.CreateContainerIfNotExistsAsync(_containerId, "/userId", 500).Result;
+
+        ContainerResponse containerResponse;
+        if (cosmosOptions.Value.CosmosChatHistoryContainerRUs.HasValue)
+        {
+            if (cosmosOptions.Value.CosmosChatHistoryContainerRUs.Value < 400)
+                throw new Exception("Cannot create a container with less than 400 RUs.");
+
+            containerResponse = _database.CreateContainerIfNotExistsAsync(
+                    _containerId,
+                    cosmosOptions.Value.CosmosChatHistoryContainerPartitionKey,
+                    cosmosOptions.Value.CosmosChatHistoryContainerRUs.Value).Result;
+        }
+        else
+            containerResponse = _database.CreateContainerIfNotExistsAsync(
+                _containerId,
+                cosmosOptions.Value.CosmosChatHistoryContainerPartitionKey).Result;
+
         _container = containerResponse.Container;
     }
 

@@ -24,9 +24,23 @@ public class CosmosDBPlugin
 
         var dbResponse = _cosmosClient.CreateDatabaseIfNotExistsAsync(_databaseId).Result;
         _database = dbResponse.Database;
-        // splitting 1k throughput across history container and structured data container
-        // todo: parameterize throughput and partition key as configuration
-        var containerResponse = _database.CreateContainerIfNotExistsAsync(_containerId, "/partitionKey", 400).Result;
+
+        ContainerResponse containerResponse;
+        if (cosmosOptions.Value.CosmosStructuredDataContainerRUs.HasValue)
+        {
+            if (cosmosOptions.Value.CosmosStructuredDataContainerRUs.Value < 400)
+                throw new Exception("Cannot create a container with less than 400 RUs.");
+
+            containerResponse = _database.CreateContainerIfNotExistsAsync(
+                    _containerId,
+                    cosmosOptions.Value.CosmosStructuredDataContainerPartitionKey,
+                    cosmosOptions.Value.CosmosStructuredDataContainerRUs.Value).Result;
+        }
+        else
+            containerResponse = _database.CreateContainerIfNotExistsAsync(
+                _containerId,
+                cosmosOptions.Value.CosmosStructuredDataContainerPartitionKey).Result;
+
         _container = containerResponse.Container;
     }
 
