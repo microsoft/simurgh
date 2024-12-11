@@ -2,6 +2,7 @@ metadata description = 'Creates an Azure Cosmos DB for NoSQL account.'
 param name string
 param location string = resourceGroup().location
 param tags object = {}
+param isCosmosServerless bool = true
 
 module cosmos '../../cosmos/cosmos-account.bicep' = {
   name: 'cosmos-account'
@@ -10,6 +11,7 @@ module cosmos '../../cosmos/cosmos-account.bicep' = {
     location: location
     tags: tags
     kind: 'GlobalDocumentDB'
+    isCosmosServerless: isCosmosServerless
   }
 }
 

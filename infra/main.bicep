@@ -9,6 +9,19 @@ param environmentName string
 @description('Primary location for all resources')
 param location string
 
+@description('Whether to use the Cosmos DB serverless option, default is true')
+param isCosmosServerless bool
+
+param cosmosDbName string = 'chatbot'
+
+param structuredDataContainerId string = 'documents'
+param structuredDataPartitionKey string = '/id'
+param structuredDataRUs int = 400
+
+param chatHistoryContainerId string = 'conversations'
+param chatHistoryPartitionKey string = '/userId'
+param chatHistoryRUs int = 400
+
 param appServicePlanName string = ''
 param backendServiceName string = ''
 param resourceGroupName string = ''
@@ -82,21 +95,25 @@ var appServiceName = !empty(backendServiceName)
   ? backendServiceName
   : '${abbrs.webSitesAppService}backend-${resourceToken}'
 
-var history_database_id = 'db_conversation_history'
-var history_container_id = 'conversations'
-var structured_data_database_id = 'db_structured_data'
-var structured_data_container_id = 'documents'
+var cosmosSettings = union(
+  (isHistoryEnabled)
+    ? {
+        CosmosOptions__CosmosEndpoint: cosmos.outputs.endpoint
+        CosmosOptions__CosmosDatabaseId: cosmosDbName
+        CosmosOptions__CosmosStructuredDataContainerId: structuredDataContainerId
+        CosmosOptions__CosmosStructuredDataContainerPartitionKey: structuredDataPartitionKey
 
-var cosmosSettings = (isHistoryEnabled)
-  ? {
-      ChatHistoryCosmosOptions__CosmosEndpoint: cosmos.outputs.endpoint
-      ChatHistoryCosmosOptions__CosmosDatabaseId: history_database_id
-      ChatHistoryCosmosOptions__CosmosContainerId: history_container_id
-      StructuredDataCosmosOptions__CosmosEndpoint: cosmos.outputs.endpoint
-      StructuredDataCosmosOptions__CosmosDatabaseId: structured_data_database_id
-      StructuredDataCosmosOptions__CosmosContainerId: structured_data_container_id
-    }
-  : {}
+        CosmosOptions__CosmosChatHistoryContainerId: chatHistoryContainerId
+        CosmosOptions__CosmosChatHistoryContainerPartitionKey: chatHistoryPartitionKey
+      }
+    : {},
+  (isCosmosServerless)
+    ? {
+        CosmosOptions__CosmosStructuredDataContainerRUs: structuredDataRUs
+        CosmosOptions__CosmosChatHistoryContainerRUs: chatHistoryRUs
+      }
+    : {}
+)
 
 var backendAppSettings = union(cosmosSettings, {
   // frontend settings
@@ -158,28 +175,20 @@ module cosmos './app/db.bicep' = if (isHistoryEnabled) {
     accountName: !empty(cosmosAccountName) ? cosmosAccountName : '${abbrs.documentDBDatabaseAccounts}${resourceToken}'
     location: location
     tags: tags
-    databases: [
+    databaseName: cosmosDbName
+    isCosmosServerless: isCosmosServerless
+    containers: [
       {
-        name: history_database_id
-        kind: 'GlobalDocumentDB'
-        containers: [
-          {
-            name: history_container_id
-            id: history_container_id
-            partitionKey: '/userId'
-          }
-        ]
+        id: chatHistoryContainerId
+        name: chatHistoryContainerId
+        partitionKey: chatHistoryPartitionKey
+        rus: chatHistoryRUs
       }
       {
-        name: structured_data_database_id
-        kind: 'GlobalDocumentDB'
-        containers: [
-          {
-            name: structured_data_container_id
-            id: structured_data_container_id
-            partitionKey: '/id'
-          }
-        ]
+        id: structuredDataContainerId
+        name: structuredDataContainerId
+        partitionKey: structuredDataPartitionKey
+        rus: structuredDataRUs
       }
     ]
   }
@@ -240,12 +249,14 @@ output AzureOpenAIOptions__Endpoint string = openAi.outputs.endpoint
 output AzureOpenAIOptions__Deployment string = chatDeploymentName
 output AZURE_TENANT_ID string = subscription().tenantId
 
-// cosmos history options
-output ChatHistoryCosmosOptions__CosmosEndpoint string = cosmos.outputs.endpoint
-output ChatHistoryCosmosOptions__CosmosDatabaseId string = history_database_id
-output ChatHistoryCosmosOptions__CosmosContainerId string = history_container_id
-
-// cosmos structured data options
-output StructuredDataCosmosOptions__CosmosEndpoint string = cosmos.outputs.endpoint
-output StructuredDataCosmosOptions__CosmosDatabaseId string = structured_data_database_id
-output StructuredDataCosmosOptions__CosmosContainerId string = structured_data_container_id
+// cosmos db
+output CosmosOptions__CosmosEndpoint string = cosmos.outputs.endpoint
+output CosmosOptions__CosmosDatabaseId string = cosmosDbName
+// chat history container
+output CosmosOptions__CosmosChatHistoryContainerId string = chatHistoryContainerId
+output CosmosOptions__CosmosChatHistoryContainerPartitionKey string = chatHistoryPartitionKey
+output CosmosOptions__CosmosChatHistoryContainerRUs int = chatHistoryRUs
+// structured data container
+output CosmosOptions__CosmosStructuredDataContainerId string = structuredDataContainerId
+output CosmosOptions__CosmosStructuredDataContainerPartitionKey string = structuredDataPartitionKey
+output CosmosOptions__CosmosStructuredDataContainerRUs int = structuredDataRUs
