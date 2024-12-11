@@ -93,46 +93,4 @@ public class CosmosDBPlugin
 
         return new List<string>();
     }
-
-    // generate a query based on the user's question
-    [KernelFunction("cosmos_generate_query")]
-    [Description("Generate a query based on the user's question and available columns")]
-    [return: Description("The generated query")]
-    public string GenerateCosmosQuery(string userQuestion, List<string> availableColumns)
-    {
-        if (string.IsNullOrEmpty(userQuestion))
-        {
-            throw new ArgumentException("User question cannot be null or empty", nameof(userQuestion));
-        }
-
-        if (availableColumns == null || availableColumns.Count == 0)
-        {
-            throw new ArgumentException("Available columns list cannot be null or empty", nameof(availableColumns));
-        }
-
-        // TODO: Use the ChatCompletionService to extract relevant column names from the user's question
-        var selectedColumns = new List<string>();
-        foreach (var column in availableColumns)
-        {
-            if (userQuestion.Contains(column, StringComparison.OrdinalIgnoreCase))
-            {
-                selectedColumns.Add(column);
-            }
-        }
-
-        // If no columns are found in the user's question, select all available columns
-        if (selectedColumns.Count == 0)
-        {
-            selectedColumns = availableColumns;
-        }
-
-        // Join the column names with commas to form the SELECT clause
-        var selectClause = string.Join(", ", selectedColumns.Select(name => $"c.{name}"));
-
-        // Construct the query
-        var query = $"SELECT {selectClause} FROM c";
-
-        return query;
-    }
-
 }
