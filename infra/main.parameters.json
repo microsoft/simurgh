@@ -19,6 +19,9 @@
     },
     "openAiSkuName": {
       "value": "${AZURE_OPENAI_SKU_NAME}"
+    },
+    "isCosmosServerless": {
+      "value": ""
     }
   }
 }
