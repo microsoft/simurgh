@@ -12,8 +12,11 @@ public class ChatCompletionService
     private readonly string _promptDirectory;
 
     private const string MemberAssistantInstructions = $$$"""
-        You are a helpful agent answering questions and automating actions on behalf of a user with the plugin functions available to you.
-        1. LightsPlugin
+        You're goal is to answer user questions about survey data inside of CosmosDB. Generate the CosmosDB container metadata.
+        You have access to the following plugins:
+        1. CosmosDBPlugin
+        2. TextPlugin
+        3. CosmosQueryGeneratorPlugin
         """;
 
     public ChatCompletionService(Kernel kernel)
@@ -88,6 +91,7 @@ public class ChatCompletionService
         }
         catch (Exception ex)
         {
+            Console.WriteLine(ex.Message);
             throw;
         }
     }
