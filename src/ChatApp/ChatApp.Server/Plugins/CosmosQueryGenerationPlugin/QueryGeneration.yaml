@@ -1,0 +1,19 @@
+name: QueryGeneration
+template: |
+        Write a CosmosDB SQL query that will return the columns: {{$columnnames}} to answer this question: {{$queryintent}}.
+template_format: semantic-kernel
+description: A function generates a CosmosDB SQL query based on a list of columns that are cross referenced to a user's question.
+input_variables:
+  - name: queryintent
+    description: The intent of the query.
+    is_required: true
+  - name: columnnames
+    description: The column names of the table.
+    is_required: true
+output_variable:
+  description: a cosmos db SQL query.
+execution_settings:
+  default:
+    temperature: 0.2
+    max_tokens: 1000
+    top_p: 0.7

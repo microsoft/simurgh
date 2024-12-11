@@ -45,9 +45,9 @@ public class CosmosDBPlugin
     }
 
     [KernelFunction("cosmos_query")]
-    [Description("Query the Cosmos DB")]
+    [Description("Execute a query against the Cosmos DB")]
     [return: Description("The result of the query")]
-    public async Task<List<dynamic>> CosmosQueryAsync([Description("The query to run")] string query)
+    public async Task<List<dynamic>> ExecuteCosmosQueryAsync([Description("The query to run")] string query)
     {
         var queryDefinition = new QueryDefinition(query);
 
@@ -67,4 +67,72 @@ public class CosmosDBPlugin
 
         return results;
     }
+
+    // function for fetching metadata names of columns
+    [KernelFunction("cosmos_get_column_names")]
+    [Description("Get the column names of the Cosmos DB container")]
+    [return: Description("The column names of the container")]
+    public async Task<List<string>> GetColumnNamesAsync()
+    {
+        var query = "SELECT * FROM c";
+        var iterator = _container.GetItemQueryIterator<dynamic>(query, requestOptions: new QueryRequestOptions { MaxItemCount = 1 });
+        var response = await iterator.ReadNextAsync();
+
+        if (response.Count > 0)
+        {
+            var firstItem = response.First();
+            var columnNames = new List<string>();
+
+            foreach (var property in firstItem.GetType().GetProperties())
+            {
+                columnNames.Add(property.Name);
+            }
+
+            return columnNames;
+        }
+
+        return new List<string>();
+    }
+
+    // generate a query based on the user's question
+    [KernelFunction("cosmos_generate_query")]
+    [Description("Generate a query based on the user's question and available columns")]
+    [return: Description("The generated query")]
+    public string GenerateCosmosQuery(string userQuestion, List<string> availableColumns)
+    {
+        if (string.IsNullOrEmpty(userQuestion))
+        {
+            throw new ArgumentException("User question cannot be null or empty", nameof(userQuestion));
+        }
+
+        if (availableColumns == null || availableColumns.Count == 0)
+        {
+            throw new ArgumentException("Available columns list cannot be null or empty", nameof(availableColumns));
+        }
+
+        // TODO: Use the ChatCompletionService to extract relevant column names from the user's question
+        var selectedColumns = new List<string>();
+        foreach (var column in availableColumns)
+        {
+            if (userQuestion.Contains(column, StringComparison.OrdinalIgnoreCase))
+            {
+                selectedColumns.Add(column);
+            }
+        }
+
+        // If no columns are found in the user's question, select all available columns
+        if (selectedColumns.Count == 0)
+        {
+            selectedColumns = availableColumns;
+        }
+
+        // Join the column names with commas to form the SELECT clause
+        var selectClause = string.Join(", ", selectedColumns.Select(name => $"c.{name}"));
+
+        // Construct the query
+        var query = $"SELECT {selectClause} FROM c";
+
+        return query;
+    }
+
 }
