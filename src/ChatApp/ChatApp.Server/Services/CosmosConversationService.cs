@@ -9,22 +9,48 @@ namespace ChatApp.Server.Services;
 internal class CosmosConversationService
 {
     private readonly CosmosClient _cosmosClient;
-    private readonly Database _database;
-    private readonly Container _container;
+    private Database _database;
+    private Container _container;
     private readonly string _databaseId;
     private readonly string _containerId;
 
-    public CosmosConversationService(CosmosClient cosmosClient, IOptionsSnapshot<CosmosOptions> cosmosOptions)
+    public CosmosConversationService(CosmosClient cosmosClient, IOptions<CosmosOptions> cosmosOptions)
     {
         _cosmosClient = cosmosClient;
 
-        var chatHistoryOptions = cosmosOptions.Get("ChatHistory");
-        _databaseId = chatHistoryOptions.CosmosDatabaseId;
-        _containerId = chatHistoryOptions.CosmosContainerId;
-        _database = _cosmosClient.GetDatabase(_databaseId);
-        _container = _cosmosClient.GetContainer(_databaseId, _containerId);
+        _databaseId = cosmosOptions.Value.CosmosDatabaseId;
+        _containerId = cosmosOptions.Value.CosmosChatHistoryContainerId;
+
+        // TodoItems >> db name
+        // Items >> structured data
+        // need to create a container for History
+
+
+        var dbResponse = _cosmosClient.CreateDatabaseIfNotExistsAsync(_databaseId).Result;
+        _database = dbResponse.Database;
+        // splitting 1k throughput across history container and structured data container
+        // todo: parameterize throughput and partition key as configuration
+
+        ContainerResponse containerResponse;
+        if (cosmosOptions.Value.CosmosChatHistoryContainerRUs.HasValue)
+        {
+            if (cosmosOptions.Value.CosmosChatHistoryContainerRUs.Value < 400)
+                throw new Exception("Cannot create a container with less than 400 RUs.");
+
+            containerResponse = _database.CreateContainerIfNotExistsAsync(
+                    _containerId,
+                    cosmosOptions.Value.CosmosChatHistoryContainerPartitionKey,
+                    cosmosOptions.Value.CosmosChatHistoryContainerRUs.Value).Result;
+        }
+        else
+            containerResponse = _database.CreateContainerIfNotExistsAsync(
+                _containerId,
+                cosmosOptions.Value.CosmosChatHistoryContainerPartitionKey).Result;
+
+        _container = containerResponse.Container;
     }
 
+    // todo: evaluate for moving into constructor and switching from scoped to singleton
     internal async Task<(bool, Exception?)> EnsureAsync()
     {
         if (_cosmosClient == null || _database == null || _container == null)

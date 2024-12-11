@@ -2,8 +2,9 @@ metadata description = 'Creates an Azure Cosmos DB account.'
 param name string
 param location string = resourceGroup().location
 param tags object = {}
+param isCosmosServerless bool = true
 
-@allowed([ 'GlobalDocumentDB', 'MongoDB', 'Parse' ])
+@allowed(['GlobalDocumentDB', 'MongoDB', 'Parse'])
 param kind string
 
 resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2022-08-15' = {
@@ -24,7 +25,7 @@ resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2022-08-15' = {
     enableAutomaticFailover: false
     enableMultipleWriteLocations: false
     apiProperties: (kind == 'MongoDB') ? { serverVersion: '4.0' } : {}
-    // capabilities: [ { name: 'EnableServerless' } ]
+    capabilities: isCosmosServerless ? [{ name: 'EnableServerless' }] : []
   }
 }
 

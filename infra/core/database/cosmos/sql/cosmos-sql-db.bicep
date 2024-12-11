@@ -22,7 +22,9 @@ param principalIds array = []
 ]
 
 */
-param databases array = []
+param isCosmosServerless bool = true
+param containers array = []
+param databaseName string = 'chatbot'
 
 module cosmos 'cosmos-sql-account.bicep' = {
   name: 'cosmos-sql-account'
@@ -30,22 +32,37 @@ module cosmos 'cosmos-sql-account.bicep' = {
     name: accountName
     location: location
     tags: tags
+    isCosmosServerless: isCosmosServerless
   }
 }
 
-module database 'cosmos-single-sql-db.bicep' = [
-  for database in databases: {
-    name: 'cosmos-sql-db-${database.name}'
-    params: {
-      accountName: accountName
-      databaseName: database.name
-      containers: database.containers
-    }
-    dependsOn: [
-      cosmos
-    ]
+resource database 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2022-05-15' = {
+  name: '${accountName}/${databaseName}'
+  properties: {
+    resource: { id: databaseName }
   }
-]
+
+  resource list 'containers' = [
+    for container in containers: {
+      name: container.name
+      properties: {
+        options: isCosmosServerless
+          ? {}
+          : {
+              throughput: container.rus
+            }
+        resource: {
+          id: container.id
+          partitionKey: { paths: [container.partitionKey] }
+        }
+      }
+    }
+  ]
+
+  dependsOn: [
+    cosmos
+  ]
+}
 
 module roleDefinition 'cosmos-sql-role-def.bicep' = {
   name: 'cosmos-sql-role-definition'
