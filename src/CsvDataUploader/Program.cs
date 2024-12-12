@@ -61,6 +61,18 @@ foreach (var row in rowsToUpload)
     rowToUpload["id"] = Guid.NewGuid().ToString();
     rowToUpload[options.PartitionKey] = partitionKey;
 
+    foreach (var key in rowToUpload.Keys.ToList())
+    {
+        if (int.TryParse(rowToUpload[key] as string, out var intVal))
+        {
+            rowToUpload[key] = intVal;
+            continue;
+        }
+
+        if (decimal.TryParse(rowToUpload[key] as string, out var decVal))
+            rowToUpload[key] = decVal;
+    }
+
     tasks.Add(container.CreateItemAsync(rowToUpload, new PartitionKey(partitionKey)));
 
     // Process in batches of 10
