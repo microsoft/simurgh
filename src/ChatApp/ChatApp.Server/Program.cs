@@ -1,3 +1,9 @@
+using Azure.Monitor.OpenTelemetry.AspNetCore;
+using Azure.Monitor.OpenTelemetry.Exporter;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+
 namespace ChatApp.Server;
 
 public class Program
@@ -9,6 +15,37 @@ public class Program
         builder.Services.AddOptions(builder.Configuration);
         // Add services to the container.
         builder.Services.AddAuthorization();
+
+        #region OpenTelemetry
+
+        var connectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
+        AppContext.SetSwitch("Microsoft.SemanticKernel.Experimental.GenAI.EnableOTelDiagnosticsSensitive", true);
+
+        // Add OpenTelemetry and configure it to use Azure Monitor.
+        builder.Services.AddOpenTelemetry()
+            .ConfigureResource(resource => resource
+                .AddService(serviceName: builder.Environment.ApplicationName))
+            .WithTracing(tracing => tracing
+                .AddSource("Microsoft.SemanticKernel*")
+                .AddAspNetCoreInstrumentation())
+            .WithMetrics(metrics => metrics
+                .AddMeter("Microsoft.SemanticKernel*")
+                .AddAspNetCoreInstrumentation())
+            .UseAzureMonitor();
+
+        using var loggerFactory = LoggerFactory.Create(builder =>
+        {
+            // Add OpenTelemetry as a logging provider
+            builder.AddOpenTelemetry(options =>
+            {
+                options.AddAzureMonitorLogExporter(options => options.ConnectionString = connectionString);
+                // Format log messages. This is default to false.
+                options.IncludeFormattedMessage = true;
+            });
+            builder.SetMinimumLevel(LogLevel.Information);
+        });
+
+        #endregion
 
         // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
         builder.Services.AddEndpointsApiExplorer();
