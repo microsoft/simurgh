@@ -260,3 +260,5 @@ output CosmosOptions__CosmosChatHistoryContainerRUs int = chatHistoryRUs
 output CosmosOptions__CosmosStructuredDataContainerId string = structuredDataContainerId
 output CosmosOptions__CosmosStructuredDataContainerPartitionKey string = structuredDataPartitionKey
 output CosmosOptions__CosmosStructuredDataContainerRUs int = structuredDataRUs
+
+output APPLICATIONINSIGHTS_CONNECTION_STRING string = monitoring.outputs.applicationInsightsConnectionString
