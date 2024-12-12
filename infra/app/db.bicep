@@ -28,7 +28,7 @@ param containers array = [
   {
     id: 'documents'
     name: 'documents'
-    partitionKey: '/id'
+    partitionKey: '/filename'
     rus: 400
   }
 ]
