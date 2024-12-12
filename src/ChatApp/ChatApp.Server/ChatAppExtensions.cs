@@ -89,6 +89,7 @@ internal static class ChatAppExtensions
             builder.Services.AddSingleton(aoaiOpts);
             builder.Services.AddSingleton(jsonOptions);
 
+            // Register the CosmosClient with the Kernel services collection
             builder.Services.AddSingleton(services =>
             {
                 if (!string.IsNullOrWhiteSpace(cosmosOptions.Value.ConnectionString))
@@ -119,6 +120,7 @@ internal static class ChatAppExtensions
                     .Build();
             });
 
+            // Register the AzureOpenAIChatCompletion with the Kernel services collection
             if (string.IsNullOrWhiteSpace(aoaiOpts.CurrentValue.APIKey))
             {
                 // managed identity
