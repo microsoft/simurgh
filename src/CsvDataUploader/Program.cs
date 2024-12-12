@@ -1,66 +1,78 @@
-﻿using CsvHelper;
-using System.Globalization;
-using System.IO;
+﻿using Azure.Identity;
+using CsvDataUploader;
+using CsvHelper;
 using Microsoft.Azure.Cosmos;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
-
+using System.Globalization;
 
 var configuration = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("appsettings.json")
+            .AddUserSecrets<Program>()
             .Build();
 
-// Access values from the configuration
-string connectionString = configuration["CosmosDB:ConnectionString"];
-string databaseName = configuration["CosmosDB:DatabaseName"];
-string conatainerName = configuration["CosmosDB:ContainerName"];
-string filePath = configuration["CsvFilePath"];
+var options = new UploaderOptions();
+configuration.GetSection(nameof(UploaderOptions)).Bind(options);
 
-try
+CosmosClient cosmosClient;
+
+if (!string.IsNullOrWhiteSpace(options.ConnectionString))
 {
-    CosmosClient cosmosClient = new CosmosClient(connectionString);
-    Container container = cosmosClient.GetContainer(databaseName, conatainerName);
-
-    using var reader = new StreamReader(filePath);
-    using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
-    var records = csv.GetRecords<dynamic>().ToList();
-
-    List<Task> tasks = new List<Task>();
-    foreach (var record in records)
+    cosmosClient = new CosmosClient(options.ConnectionString);
+}
+else if (!string.IsNullOrWhiteSpace(options.Endpoint))
+{
+    if (string.IsNullOrWhiteSpace(options.Key))
     {
-        IDictionary<string, object> recordDict = (IDictionary<string, object>)record;
-        recordDict["id"] = Guid.NewGuid().ToString();
-        recordDict["partitionKey"] = "2024 1H NPS Individual Responses";
+        var defaultAzureCredential =
+            string.IsNullOrWhiteSpace(options.TenantId) ? new DefaultAzureCredential() :
+            new DefaultAzureCredential(new DefaultAzureCredentialOptions { TenantId = options.TenantId });
 
-        foreach (var key in recordDict.Keys.ToList())
-        {
-            if (recordDict[key] is string strValue &&
-                int.TryParse(strValue, out int intValue))
-            {
-                recordDict[key] = intValue;
-            }
-        }
-
-        tasks.Add(container.CreateItemAsync(recordDict, new PartitionKey(recordDict["partitionKey"].ToString())));
-
-        // Process in batches of 10
-        if (tasks.Count >= 10)
-        {
-            await Task.WhenAll(tasks);
-            tasks.Clear();
-        }
+        cosmosClient = new CosmosClient(options.Endpoint, defaultAzureCredential);
     }
+    else
+    {
+        cosmosClient = new CosmosClient(options.Endpoint, options.Key);
+    }
+}
+else
+    throw new ArgumentException("Either ConnectionString or Endpoint must be provided.");
 
-    if (tasks.Any())
+var container = cosmosClient.GetContainer(options.DatabaseName, options.ContainerName);
+
+if (!File.Exists(options.CsvFilePath)) throw new ArgumentException("CsvFilePath does not exist.");
+
+using var reader = new StreamReader(options.CsvFilePath);
+using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
+
+var rowsToUpload = csv.GetRecords<dynamic>()
+    .OfType<IDictionary<string, object>>()
+    .ToList() ?? [];
+
+var tasks = new List<Task>();
+
+foreach (var row in rowsToUpload)
+{
+    var rowToUpload = row.Where(r => r.Key is not null && (r.Value is string || r.Value is int))
+      .ToDictionary();
+
+    var partitionKey = Path.GetFileNameWithoutExtension(options.CsvFilePath);
+
+    rowToUpload["id"] = Guid.NewGuid().ToString();
+    rowToUpload[options.PartitionKey] = partitionKey;
+
+    tasks.Add(container.CreateItemAsync(rowToUpload, new PartitionKey(partitionKey)));
+
+    // Process in batches of 10
+    if (tasks.Count >= options.BatchSize)
     {
         await Task.WhenAll(tasks);
+        tasks.Clear();
     }
 }
-catch (Exception ex)
-{
-    throw new Exception($"Error uploading CSV to Cosmos DB: {ex.Message}", ex);
-}
+
+// Process any remaining tasks
+if (tasks.Count != 0)
+    await Task.WhenAll(tasks);
 
 Console.WriteLine("Finished...");

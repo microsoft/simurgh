@@ -15,7 +15,7 @@ param isCosmosServerless bool
 param cosmosDbName string = 'chatbot'
 
 param structuredDataContainerId string = 'documents'
-param structuredDataPartitionKey string = '/id'
+param structuredDataPartitionKey string = '/filename'
 param structuredDataRUs int = 400
 
 param chatHistoryContainerId string = 'conversations'
