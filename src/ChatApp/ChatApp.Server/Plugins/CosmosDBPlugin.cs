@@ -44,7 +44,7 @@ public class CosmosDBPlugin
         _container = containerResponse.Container;
     }
 
-    [KernelFunction("cosmos_query")]
+    [KernelFunction(nameof(ExecuteCosmosQueryAsync))]
     [Description("Execute a query against the Cosmos DB")]
     [return: Description("The result of the query")]
     public async Task<List<dynamic>> ExecuteCosmosQueryAsync([Description("The query to run")] string query)
@@ -69,7 +69,7 @@ public class CosmosDBPlugin
     }
 
     // function for fetching metadata names of columns
-    [KernelFunction("cosmos_get_column_names")]
+    [KernelFunction(nameof(GetColumnNamesAsync))]
     [Description("Get the column names of the Cosmos DB container")]
     [return: Description("The column names of the container")]
     public async Task<List<string>> GetColumnNamesAsync()
