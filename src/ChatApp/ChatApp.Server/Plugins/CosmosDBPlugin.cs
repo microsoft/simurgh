@@ -4,6 +4,8 @@ using System.ComponentModel;
 using Microsoft.Extensions.Options;
 using ChatApp.Server.Models.Options;
 using System.Dynamic;
+using Newtonsoft.Json.Linq;
+using Newtonsoft.Json;
 
 namespace ChatApp.Server.Plugins;
 
@@ -61,6 +63,7 @@ public class CosmosDBPlugin
             FeedResponse<ExpandoObject> currentResultSet = await queryResultSetIterator.ReadNextAsync();
             foreach (var item in currentResultSet)
             {
+                string json = JsonConvert.SerializeObject(item, Formatting.Indented);
                 results.Add(item);
             }
         }
@@ -75,22 +78,14 @@ public class CosmosDBPlugin
     public async Task<List<string>> GetColumnNamesAsync()
     {
         var query = "SELECT * FROM c";
-        var iterator = _container.GetItemQueryIterator<dynamic>(query, requestOptions: new QueryRequestOptions { MaxItemCount = 1 });
+        var iterator = _container.GetItemQueryIterator<JObject>(query, requestOptions: new QueryRequestOptions { MaxItemCount = 1 });
         var response = await iterator.ReadNextAsync();
 
-        if (response.Count > 0)
-        {
-            var firstItem = response.First();
-            var columnNames = new List<string>();
+        if (response.Count == 0)
+            return [];
 
-            foreach (var property in firstItem.GetType().GetProperties())
-            {
-                columnNames.Add(property.Name);
-            }
+        var colNames = response.First().Properties().Select(p => p.Name).ToList();
 
-            return columnNames;
-        }
-
-        return new List<string>();
+        return colNames;
     }
 }
