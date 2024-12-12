@@ -4,6 +4,8 @@ using System.ComponentModel;
 using Microsoft.Extensions.Options;
 using ChatApp.Server.Models.Options;
 using System.Dynamic;
+using Newtonsoft.Json.Linq;
+using Newtonsoft.Json;
 
 namespace ChatApp.Server.Plugins;
 
@@ -44,7 +46,7 @@ public class CosmosDBPlugin
         _container = containerResponse.Container;
     }
 
-    [KernelFunction("cosmos_query")]
+    [KernelFunction(nameof(ExecuteCosmosQueryAsync))]
     [Description("Execute a query against the Cosmos DB")]
     [return: Description("The result of the query")]
     public async Task<List<dynamic>> ExecuteCosmosQueryAsync([Description("The query to run")] string query)
@@ -61,6 +63,7 @@ public class CosmosDBPlugin
             FeedResponse<ExpandoObject> currentResultSet = await queryResultSetIterator.ReadNextAsync();
             foreach (var item in currentResultSet)
             {
+                string json = JsonConvert.SerializeObject(item, Formatting.Indented);
                 results.Add(item);
             }
         }
@@ -69,28 +72,20 @@ public class CosmosDBPlugin
     }
 
     // function for fetching metadata names of columns
-    [KernelFunction("cosmos_get_column_names")]
+    [KernelFunction(nameof(GetColumnNamesAsync))]
     [Description("Get the column names of the Cosmos DB container")]
     [return: Description("The column names of the container")]
     public async Task<List<string>> GetColumnNamesAsync()
     {
         var query = "SELECT * FROM c";
-        var iterator = _container.GetItemQueryIterator<dynamic>(query, requestOptions: new QueryRequestOptions { MaxItemCount = 1 });
+        var iterator = _container.GetItemQueryIterator<JObject>(query, requestOptions: new QueryRequestOptions { MaxItemCount = 1 });
         var response = await iterator.ReadNextAsync();
 
-        if (response.Count > 0)
-        {
-            var firstItem = response.First();
-            var columnNames = new List<string>();
+        if (response.Count == 0)
+            return [];
 
-            foreach (var property in firstItem.GetType().GetProperties())
-            {
-                columnNames.Add(property.Name);
-            }
+        var colNames = response.First().Properties().Select(p => p.Name).ToList();
 
-            return columnNames;
-        }
-
-        return new List<string>();
+        return colNames;
     }
 }

@@ -1,6 +1,12 @@
 name: QueryGeneration
 template: |
-        Write a CosmosDB SQL query that will return the columns: {{$columnnames}} to answer this question: {{$queryintent}}.
+        Write a syntactically correct CosmosDB SQL query to answer this question: {{$queryintent}}. 
+        Your response should be the raw SQL query without any encapsulating markdown.
+        Do not provide explanation or context. 
+        When using aggregate functions, include a where clause to filter out null values or empty values.
+        Pay attention to use only the field names that you can see in the schema description. 
+        Only use column names from the following list:
+        {{$columnnames}} 
 template_format: semantic-kernel
 description: A function generates a CosmosDB SQL query based on a list of columns that are cross referenced to a user's question.
 input_variables:
