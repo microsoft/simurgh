@@ -141,7 +141,6 @@ internal static class ChatAppExtensions
             }
 
             // Register the native plugins with the primary kernel
-            builder.Plugins.AddFromType<LightsPlugin>();
 
             // because the ChatHistory CosmosClient is in the generic service collection, we will not accidentally
             // grab it here, instead we will get the copy of for the structured data which is only added to kernel
