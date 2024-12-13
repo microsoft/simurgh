@@ -9,6 +9,19 @@ param environmentName string
 @description('Primary location for all resources')
 param location string
 
+@description('SQL Server administrator login')
+param sqlServerAdminLogin string
+
+@description('SQL Server administrator password')
+@secure()
+param sqlServerAdminPassword string
+
+@description('SQL Server name')
+param sqlServerName string = 'sqlsvr-omnicell'
+
+@description('SQL Database name')
+param sqlDBName string = 'chatbot'
+
 @description('Whether to use the Cosmos DB serverless option, default is true')
 param isCosmosServerless bool
 
@@ -164,6 +177,19 @@ module openAi 'core/ai/cognitiveservices.bicep' = {
         capacity: 30
       }
     ]
+  }
+}
+
+// The SQL chat history database
+module sql 'core/database/sqldb/sqldb-server.bicep' = {
+  name: 'sql'
+  scope: resourceGroup
+  params: {
+    serverName: sqlServerName
+    sqlDBName: sqlDBName
+    location: location
+    administratorLogin: sqlServerAdminLogin
+    administratorLoginPassword: sqlServerAdminPassword
   }
 }
 
