@@ -18,4 +18,15 @@ public class UploaderOptions
     public string CsvFilePath { get; set; } = string.Empty;
     // how many records to upload at once
     public int BatchSize { get; set; } = 5;
+
+
+
+
+
+
+
+
+
+    public string SqlServerEndpoint { get; set; } = string.Empty;
+    public string SqlDatabaseName { get; set; } = string.Empty;
 }
