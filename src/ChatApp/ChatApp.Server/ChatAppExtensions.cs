@@ -1,7 +1,6 @@
 ﻿using Azure;
 using Azure.Identity;
 using ChatApp.Server.Models.Options;
-using ChatApp.Server.Plugins;
 using ChatApp.Server.Services;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Cosmos.Fluent;
@@ -123,11 +122,6 @@ internal static class ChatAppExtensions
             // Register the AzureOpenAIChatCompletion with the Kernel services collection
             if (string.IsNullOrWhiteSpace(aoaiOpts.CurrentValue.APIKey))
             {
-                // managed identity
-                var defaultAzureCreds = string.IsNullOrEmpty(config["AZURE_TENANT_ID"])
-                ? new DefaultAzureCredential()
-                : new DefaultAzureCredential(new DefaultAzureCredentialOptions { TenantId = config["AZURE_TENANT_ID"] });
-
 #pragma warning disable SKEXP0010 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
                 builder.AddAzureOpenAIChatCompletion(aoaiOpts.CurrentValue.Deployment, aoaiOpts.CurrentValue.Endpoint, defaultAzureCreds);
 #pragma warning restore SKEXP0010 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
@@ -145,7 +139,7 @@ internal static class ChatAppExtensions
             // because the ChatHistory CosmosClient is in the generic service collection, we will not accidentally
             // grab it here, instead we will get the copy of for the structured data which is only added to kernel
             // sic preventing the inverse scenario.. 
-            builder.Plugins.AddFromType<CosmosDBPlugin>();
+            //builder.Plugins.AddFromType<CosmosDBPlugin>();
 
             return builder.Build();
         });
