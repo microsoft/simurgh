@@ -3,7 +3,6 @@ using ChatApp.Server.Plugins;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace ChatApp.Server.Services;
 
@@ -14,16 +13,15 @@ public class ChatCompletionService
     private readonly string _promptDirectory;
 
     private const string SystemMessage = $$$"""
-        You're goal is to answer user questions about survey data inside of CosmosDB. 
-
-
-        
-
-
-
+        You're goal is to answer user questions about survey data inside of CosmosDB. Do not change original prompt
         You have access to the following plugins to achieve this:
-        1. CosmosDBPlugin: this plugin can fetch columnNames about the container and execute queries
-        2. CosmosQueryGeneratorPlugin: this plugin can generate queries based on user input
+        1. AggregatesPlugin: this plugin calculate aggregates on a column of data described by the user question
+
+        For context, here are common accronyms in the data:
+        - Net Promoter Score (NPS): a measure of customer loyalty as an integer between 0 and 10
+
+        What is the average score for UPMC Health System?
+        
         """;
 
     public ChatCompletionService(Kernel kernel)
@@ -37,6 +35,8 @@ public class ChatCompletionService
             ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions
         };
 
+        _kernel.Plugins.AddFromType<AggregatesPlugin>(serviceProvider: _kernel.Services);
+
         _promptDirectory = Path.Combine(Directory.GetCurrentDirectory(), "Plugins");
     }
 
@@ -46,46 +46,12 @@ public class ChatCompletionService
 
         messages = messages.Where(m => !string.IsNullOrWhiteSpace(m.Id)).ToArray();
 
-        // note: that we're not using the chat history in prompting as each question should be considered in isolation
-        // chat history is used for generating the title, observability, and suggesting follow-up questions to users
-        //var response = await _kernel.GetRequiredService<IChatCompletionService>().GetChatMessageContentAsync(history, _promptSettings, _kernel);
-        // commenting out above to see about direct invocation
-
-        try
-        {
-            // todo: inject the partitionKey viz. filename
-            var columnNames = await _kernel.InvokeAsync(nameof(CosmosDBPlugin), nameof(CosmosDBPlugin.GetColumnNamesAsync));
-
-            var promptYaml = File.ReadAllText(Path.Combine(_promptDirectory, "CosmosQueryGenerationPlugin", "QueryGeneration.yaml"));
-
-            var function = _kernel.CreateFunctionFromPromptYaml(promptYaml);
-
-            var columnNamesLiteral = columnNames.GetValue<List<string>>()?
-                .Select(s => $"\"{s}\"") ?? [];
-
-            var columnNamesStr = string.Join(",", columnNamesLiteral);
-
-            var cosmosQuery = await _kernel.InvokeAsync(function, new() {
-                { "queryintent", messages.Last().Content },
-                { "columnnames", columnNamesStr }
-            });
-
-            var cosmosQueryResult = await _kernel.InvokeAsync(nameof(CosmosDBPlugin), nameof(CosmosDBPlugin.ExecuteCosmosQueryAsync), new() { { "query", cosmosQuery } });
-
-            // todo: implement retry pattern
-
-        }
-        catch (Exception exception)
-        {
-            Console.WriteLine(exception.Message);
-            throw;
-        }
-
+        var response = await _kernel.GetRequiredService<IChatCompletionService>().GetChatMessageContentAsync(history, _promptSettings, _kernel);
 
         // append response messages to messages array
         var responseMessages = messages.ToList();
 
-        // tool calls and responses are added back to the response messages
+        // tool calls and responses are added to the response messages
         history.Where(m => m.Role == AuthorRole.Tool).ToList().ForEach(item => responseMessages.Add(new Message
         {
             Id = Guid.NewGuid().ToString(),
@@ -95,13 +61,13 @@ public class ChatCompletionService
         }));
 
         // latest assistant response is added to the response messages
-        //response.Items.ToList().ForEach(item => responseMessages.Add(new Message
-        //{
-        //    Id = Guid.NewGuid().ToString(),
-        //    Role = AuthorRole.Assistant.ToString().ToLower(),
-        //    Content = item.ToString()!,
-        //    Date = DateTime.UtcNow
-        //}));
+        response.Items.ToList().ForEach(item => responseMessages.Add(new Message
+        {
+            Id = Guid.NewGuid().ToString(),
+            Role = AuthorRole.Assistant.ToString().ToLower(),
+            Content = item.ToString()!,
+            Date = DateTime.UtcNow
+        }));
 
         return [.. responseMessages];
     }
