@@ -41,8 +41,8 @@ namespace ChatApp.Server.Plugins
         }
 
         [KernelFunction(nameof(GetTablesDataSchemaAsync))]
-        [Description("Get the column names of the Cosmos DB container")]
-        [return: Description("The column names of the container")]
+        [Description("Get tables schema from Azure SQL Database")]
+        [return: Description("The schema of tables")]
         public async Task<List<dynamic>> GetTablesDataSchemaAsync()
         {
             _sqlConn.Open();
