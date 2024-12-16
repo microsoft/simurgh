@@ -1,0 +1,23 @@
+name: SuggestQuestions
+template: |
+        {{$history}}
+        ---
+        Based on the above conversation, and the below metadata of the survey the conversation is about, please provide a comma-delimited list of 3 suggested questions that could be asked about the survey data.
+        ---
+        {{survey_metadata}}
+template_format: semantic-kernel
+description: A function generates a short summary name for the chat session.
+input_variables:
+  - name: history
+    description: The conversation history from chat.
+    is_required: true
+  - name: survey_metadata
+    description: Metadata about the questions asked in the survey.
+    is_required: true
+output_variable:
+  description: a comma-delimited list of 3 suggested questions about the survey data.
+execution_settings:
+  default:
+    temperature: 0.2
+    max_tokens: 1000
+    top_p: 0.7

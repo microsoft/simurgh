@@ -35,6 +35,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="Plugins\TextPlugin\SuggestQuestions.yaml">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="Plugins\TextPlugin\SummarizeConversation.yaml">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
