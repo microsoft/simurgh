@@ -29,6 +29,10 @@ namespace ChatApp.Server.Plugins
                 t.TABLE_SCHEMA, t.TABLE_NAME, c.ORDINAL_POSITION;
         ";
 
+        private readonly string metadataQuery = @"
+            SELECT     
+        ";
+
         public SqlDbPlugin(IOptions<SqlOptions> sqlOptions)
         {
             _sqlConn = new SqlConnection(sqlOptions.Value.ConnectionString);
@@ -62,9 +66,9 @@ namespace ChatApp.Server.Plugins
         [return: Description("The schema of tables as a string")]
         public async Task<string> GetTablesDataSchemaAsync()
         {
-            _sqlConn.Open();
-
             var tableSchemas = new Dictionary<string, List<string>>();
+
+            _sqlConn.Open();
 
             using (SqlCommand command = new SqlCommand(query, _sqlConn))
             using (SqlDataReader reader = command.ExecuteReader())
@@ -101,6 +105,32 @@ namespace ChatApp.Server.Plugins
             }
 
             return tableSchemasString.ToString();
+        }
+
+        [KernelFunction(nameof(GetTablesDataSchemaAsync))]
+        [Description("Get metadata of data stored in SQL table")]
+        [return: Description("The metadata of data as a string")]
+        public async Task<string> GetDataMetadataAsync(Guid SurveyId)
+        {
+            string metadataQuery = @$"SELECT Id, Question, [Description]
+                FROM[dbo].[SurveyQuestion]
+                WHERE SurveyId = '{SurveyId}'
+            ";
+
+            _sqlConn.Open();
+
+            StringBuilder dataMetadataString = new StringBuilder();
+
+            using (SqlCommand command = new SqlCommand(metadataQuery, _sqlConn))
+            using (SqlDataReader reader = command.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    dataMetadataString.AppendLine($"- {reader["Id"]}|\"{reader["Question"]}\"|{reader["Description"]}");
+                }
+            }
+
+            return dataMetadataString.ToString();
         }
     }
 }
