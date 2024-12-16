@@ -46,6 +46,12 @@ const enum messageStatus {
     Done = 'Done'
 }
 
+const defaultSuggestedQueries = [
+    "Suggested Question 1",
+    "Suggested Question 2",
+    "Suggested Question 3",
+];
+
 const Chat = () => {
     let { surveyId } = useParams();
     const [surveyQuestions, setSurveyQuestions] = useState<SurveyQuestion[] | null>(null);
@@ -88,6 +94,8 @@ const Chat = () => {
     const [clearingChat, setClearingChat] = useState<boolean>(false)
     const [hideErrorDialog, { toggle: toggleErrorDialog }] = useBoolean(true)
     const [errorMsg, setErrorMsg] = useState<ErrorMessage | null>()
+    const [propmt, setPrompt] = useState<string>()
+    const [suggestedQueries, setSuggestedQueries] = useState<string[]>(defaultSuggestedQueries)
 
     const errorDialogContentProps = {
         type: DialogType.close,
@@ -404,6 +412,7 @@ const Chat = () => {
                                     errorResponseMessage = NO_CONTENT_ERROR
                                     throw Error()
                                 }
+                                setSuggestedQueries(result.suggestedQueries);
                                 if (result.choices?.length > 0) {
                                     //result.choices[0].messages.forEach(msg => {
                                     //  msg.id = result.id
@@ -820,24 +829,60 @@ const Chat = () => {
                             </div>
                         )}
 
-                        <Stack horizontal className={styles.chatInput}>
-                            {isLoading && messages.length > 0 && (
-                                <Stack
-                                    horizontal
-                                    className={styles.stopGeneratingContainer}
-                                    role="button"
-                                    aria-label="Stop generating"
-                                    tabIndex={0}
-                                    onClick={stopGenerating}
-                                    onKeyDown={e => (e.key === 'Enter' || e.key === ' ' ? stopGenerating() : null)}>
-                                    <SquareRegular className={styles.stopGeneratingIcon} aria-hidden="true" />
-                                    <span className={styles.stopGeneratingText} aria-hidden="true">
-                                        Stop generating
-                                    </span>
+                        <Stack enableScopedSelectors className={styles.chatWrapper} horizontalAlign="center">
+                            <Stack enableScopedSelectors>
+                                <Stack enableScopedSelectors horizontal styles={stackStyles} tokens={themedExtraLargeStackTokens}>
+                                    {suggestedQueries?.map((query, index) => (
+                                        <DefaultButton key={index} style={buttonStyles}>
+                                            {query}
+                                        </DefaultButton>
+                                    ))}
                                 </Stack>
-                            )}
-                            <Stack>
-                                {appStateContext?.state.isHistoryEnabled && (
+                            </Stack>
+                            <Stack horizontal className={styles.chatInput}>
+                                {isLoading && messages.length > 0 && (
+                                    <Stack
+                                        horizontal
+                                        className={styles.stopGeneratingContainer}
+                                        role="button"
+                                        aria-label="Stop generating"
+                                        tabIndex={0}
+                                        onClick={stopGenerating}
+                                        onKeyDown={e => (e.key === 'Enter' || e.key === ' ' ? stopGenerating() : null)}>
+                                        <SquareRegular className={styles.stopGeneratingIcon} aria-hidden="true" />
+                                        <span className={styles.stopGeneratingText} aria-hidden="true">
+                                            Stop generating
+                                        </span>
+                                    </Stack>
+                                )}
+
+                                <Stack>
+                                    {appStateContext?.state.isHistoryEnabled && (
+                                        <CommandBarButton
+                                            role="button"
+                                            styles={{
+                                                icon: {
+                                                    color: '#FFFFFF'
+                                                },
+                                                iconDisabled: {
+                                                    color: '#BDBDBD !important'
+                                                },
+                                                root: {
+                                                    color: '#FFFFFF',
+                                                    background:
+                                                        'radial-gradient(109.81% 107.82% at 100.1% 90.19%, #0F6CBD 33.63%, #2D87C3 70.31%, #8DDDD8 100%)'
+                                                },
+                                                rootDisabled: {
+                                                    background: '#F0F0F0'
+                                                }
+                                            }}
+                                            className={styles.newChatIcon}
+                                            iconProps={{ iconName: 'Add' }}
+                                            onClick={newChat}
+                                            disabled={disabledButton()}
+                                            aria-label="start a new chat button"
+                                        />
+                                    )}
                                     <CommandBarButton
                                         role="button"
                                         styles={{
@@ -856,159 +901,141 @@ const Chat = () => {
                                                 background: '#F0F0F0'
                                             }
                                         }}
-                                        className={styles.newChatIcon}
-                                        iconProps={{ iconName: 'Add' }}
-                                        onClick={newChat}
-                                        disabled={disabledButton()}
-                                        aria-label="start a new chat button"
-                                    />
-                                )}
-                                <CommandBarButton
-                                    role="button"
-                                    styles={{
-                                        icon: {
-                                            color: '#FFFFFF'
-                                        },
-                                        iconDisabled: {
-                                            color: '#BDBDBD !important'
-                                        },
-                                        root: {
-                                            color: '#FFFFFF',
-                                            background:
-                                                'radial-gradient(109.81% 107.82% at 100.1% 90.19%, #0F6CBD 33.63%, #2D87C3 70.31%, #8DDDD8 100%)'
-                                        },
-                                        rootDisabled: {
-                                            background: '#F0F0F0'
+                                        className={
+                                            appStateContext?.state.isHistoryEnabled
+                                                ? styles.clearChatBroom
+                                                : styles.clearChatBroomNoCosmos
                                         }
+                                        iconProps={{ iconName: 'Broom' }}
+                                        onClick={
+                                            appStateContext?.state.isHistoryEnabled
+                                                ? clearChat
+                                                : newChat
+                                        }
+                                        disabled={disabledButton()}
+                                        aria-label="clear chat button"
+                                    />
+                                    <Dialog
+                                        hidden={hideErrorDialog}
+                                        onDismiss={handleErrorDialogClose}
+                                        dialogContentProps={errorDialogContentProps}
+                                        modalProps={modalProps}></Dialog>
+                                </Stack>
+                                <QuestionInput
+                                    clearOnSend
+                                    placeholder="Type a new question..."
+                                    disabled={isLoading}
+                                    onSend={(question, id) => {
+                                        appStateContext?.state.isHistoryEnabled
+                                            ? makeApiRequestWithCosmosDB(question, id)
+                                            : makeApiRequestWithoutCosmosDB(question, id)
                                     }}
-                                    className={
-                                        appStateContext?.state.isHistoryEnabled
-                                            ? styles.clearChatBroom
-                                            : styles.clearChatBroomNoCosmos
+                                    conversationId={
+                                        appStateContext?.state.currentChat?.id ? appStateContext?.state.currentChat?.id : undefined
                                     }
-                                    iconProps={{ iconName: 'Broom' }}
-                                    onClick={
-                                        appStateContext?.state.isHistoryEnabled
-                                            ? clearChat
-                                            : newChat
-                                    }
-                                    disabled={disabledButton()}
-                                    aria-label="clear chat button"
                                 />
-                                <Dialog
-                                    hidden={hideErrorDialog}
-                                    onDismiss={handleErrorDialogClose}
-                                    dialogContentProps={errorDialogContentProps}
-                                    modalProps={modalProps}></Dialog>
                             </Stack>
-                            <QuestionInput
-                                clearOnSend
-                                placeholder="Type a new question..."
-                                disabled={isLoading}
-                                onSend={(question, id) => {
-                                    appStateContext?.state.isHistoryEnabled
-                                        ? makeApiRequestWithCosmosDB(question, id)
-                                        : makeApiRequestWithoutCosmosDB(question, id)
-                                }}
-                                conversationId={
-                                    appStateContext?.state.currentChat?.id ? appStateContext?.state.currentChat?.id : undefined
-                                }
-                            />
                         </Stack>
                     </div>
                     {/* Citation Panel */}
-                    {messages && messages.length > 0 && isCitationPanelOpen && activeCitation && (
-                        <Stack.Item className={styles.citationPanel} tabIndex={0} role="tabpanel" aria-label="Citations Panel">
-                            <Stack
-                                aria-label="Citations Panel Header Container"
-                                horizontal
-                                className={styles.citationPanelHeaderContainer}
-                                horizontalAlign="space-between"
-                                verticalAlign="center">
-                                <span aria-label="Citations" className={styles.citationPanelHeader}>
-                                    Citations
-                                </span>
-                                <IconButton
-                                    iconProps={{ iconName: 'Cancel' }}
-                                    aria-label="Close citations panel"
-                                    onClick={() => setIsCitationPanelOpen(false)}
-                                />
-                            </Stack>
-                            <h5
-                                className={styles.citationPanelTitle}
-                                tabIndex={0}
-                                title={
-                                    activeCitation.url && !activeCitation.url.includes('blob.core')
-                                        ? activeCitation.url
-                                        : activeCitation.title ?? ''
-                                }
-                                onClick={() => onViewSource(activeCitation)}>
-                                {activeCitation.title}
-                            </h5>
-                            <div tabIndex={0}>
-                                <ReactMarkdown
-                                    linkTarget="_blank"
-                                    className={styles.citationPanelContent}
-                                    children={DOMPurify.sanitize(activeCitation.content, { ALLOWED_TAGS: XSSAllowTags })}
-                                    remarkPlugins={[remarkGfm]}
-                                    rehypePlugins={[rehypeRaw]}
-                                />
-                            </div>
-                        </Stack.Item>
-                    )}
-                    {messages && messages.length > 0 && isIntentsPanelOpen && (
-                        <Stack.Item className={styles.citationPanel} tabIndex={0} role="tabpanel" aria-label="Intents Panel">
-                            <Stack
-                                aria-label="Intents Panel Header Container"
-                                horizontal
-                                className={styles.citationPanelHeaderContainer}
-                                horizontalAlign="space-between"
-                                verticalAlign="center">
-                                <span aria-label="Intents" className={styles.citationPanelHeader}>
-                                    Intents
-                                </span>
-                                <IconButton
-                                    iconProps={{ iconName: 'Cancel' }}
-                                    aria-label="Close intents panel"
-                                    onClick={() => setIsIntentsPanelOpen(false)}
-                                />
-                            </Stack>
-                            <Stack horizontalAlign="space-between">
-                                {execResults.map((execResult) => {
-                                    return (
-                                        <Stack className={styles.exectResultList} verticalAlign="space-between">
-                                            <><span>Intent:</span> <p>{execResult.intent}</p></>
-                                            {execResult.search_query && <><span>Search Query:</span>
-                                                <SyntaxHighlighter
-                                                    style={nord}
-                                                    wrapLines={true}
-                                                    lineProps={{ style: { wordBreak: 'break-all', whiteSpace: 'pre-wrap' } }}
-                                                    language="sql"
-                                                    PreTag="p">
-                                                    {execResult.search_query}
-                                                </SyntaxHighlighter></>}
-                                            {execResult.search_result && <><span>Search Result:</span> <p>{execResult.search_result}</p></>}
-                                            {execResult.code_generated && <><span>Code Generated:</span>
-                                                <SyntaxHighlighter
-                                                    style={nord}
-                                                    wrapLines={true}
-                                                    lineProps={{ style: { wordBreak: 'break-all', whiteSpace: 'pre-wrap' } }}
-                                                    language="python"
-                                                    PreTag="p">
-                                                    {execResult.code_generated}
-                                                </SyntaxHighlighter>
-                                            </>}
-                                        </Stack>
-                                    )
-                                })}
-                            </Stack>
-                        </Stack.Item>
-                    )}
-                    {appStateContext?.state.isChatHistoryOpen &&
-                        appStateContext?.state.isHistoryEnabled && <ChatHistoryPanel />}
-                </Stack>
+                    {
+                        messages && messages.length > 0 && isCitationPanelOpen && activeCitation && (
+                            <Stack.Item className={styles.citationPanel} tabIndex={0} role="tabpanel" aria-label="Citations Panel">
+                                <Stack
+                                    aria-label="Citations Panel Header Container"
+                                    horizontal
+                                    className={styles.citationPanelHeaderContainer}
+                                    horizontalAlign="space-between"
+                                    verticalAlign="center">
+                                    <span aria-label="Citations" className={styles.citationPanelHeader}>
+                                        Citations
+                                    </span>
+                                    <IconButton
+                                        iconProps={{ iconName: 'Cancel' }}
+                                        aria-label="Close citations panel"
+                                        onClick={() => setIsCitationPanelOpen(false)}
+                                    />
+                                </Stack>
+                                <h5
+                                    className={styles.citationPanelTitle}
+                                    tabIndex={0}
+                                    title={
+                                        activeCitation.url && !activeCitation.url.includes('blob.core')
+                                            ? activeCitation.url
+                                            : activeCitation.title ?? ''
+                                    }
+                                    onClick={() => onViewSource(activeCitation)}>
+                                    {activeCitation.title}
+                                </h5>
+                                <div tabIndex={0}>
+                                    <ReactMarkdown
+                                        linkTarget="_blank"
+                                        className={styles.citationPanelContent}
+                                        children={DOMPurify.sanitize(activeCitation.content, { ALLOWED_TAGS: XSSAllowTags })}
+                                        remarkPlugins={[remarkGfm]}
+                                        rehypePlugins={[rehypeRaw]}
+                                    />
+                                </div>
+                            </Stack.Item>
+                        )
+                    }
+                    {
+                        messages && messages.length > 0 && isIntentsPanelOpen && (
+                            <Stack.Item className={styles.citationPanel} tabIndex={0} role="tabpanel" aria-label="Intents Panel">
+                                <Stack
+                                    aria-label="Intents Panel Header Container"
+                                    horizontal
+                                    className={styles.citationPanelHeaderContainer}
+                                    horizontalAlign="space-between"
+                                    verticalAlign="center">
+                                    <span aria-label="Intents" className={styles.citationPanelHeader}>
+                                        Intents
+                                    </span>
+                                    <IconButton
+                                        iconProps={{ iconName: 'Cancel' }}
+                                        aria-label="Close intents panel"
+                                        onClick={() => setIsIntentsPanelOpen(false)}
+                                    />
+                                </Stack>
+                                <Stack horizontalAlign="space-between">
+                                    {execResults.map((execResult) => {
+                                        return (
+                                            <Stack className={styles.exectResultList} verticalAlign="space-between">
+                                                <><span>Intent:</span> <p>{execResult.intent}</p></>
+                                                {execResult.search_query && <><span>Search Query:</span>
+                                                    <SyntaxHighlighter
+                                                        style={nord}
+                                                        wrapLines={true}
+                                                        lineProps={{ style: { wordBreak: 'break-all', whiteSpace: 'pre-wrap' } }}
+                                                        language="sql"
+                                                        PreTag="p">
+                                                        {execResult.search_query}
+                                                    </SyntaxHighlighter></>}
+                                                {execResult.search_result && <><span>Search Result:</span> <p>{execResult.search_result}</p></>}
+                                                {execResult.code_generated && <><span>Code Generated:</span>
+                                                    <SyntaxHighlighter
+                                                        style={nord}
+                                                        wrapLines={true}
+                                                        lineProps={{ style: { wordBreak: 'break-all', whiteSpace: 'pre-wrap' } }}
+                                                        language="python"
+                                                        PreTag="p">
+                                                        {execResult.code_generated}
+                                                    </SyntaxHighlighter>
+                                                </>}
+                                            </Stack>
+                                        )
+                                    })}
+                                </Stack>
+                            </Stack.Item>
+                        )
+                    }
+                    {
+                        appStateContext?.state.isChatHistoryOpen &&
+                        appStateContext?.state.isHistoryEnabled && <ChatHistoryPanel />
+                    }
+                </Stack >
             )}
-        </div>
+        </div >
     )
 }
 
