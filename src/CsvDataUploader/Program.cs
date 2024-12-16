@@ -19,11 +19,15 @@ configuration.GetSection(nameof(UploaderOptions)).Bind(options);
 
 #region SQL
 
+Console.WriteLine("Sql Server Endpoint: " + options.Endpoint);
+Console.WriteLine("Sql Database Name: " + options.DatabaseName);
+
 var sqlConnectionStringBuilder = new SqlConnectionStringBuilder
 {
-    DataSource = options.SqlServerEndpoint,
-    InitialCatalog = options.SqlDatabaseName
+    DataSource = options.Endpoint,
+    InitialCatalog = options.DatabaseName
 };
+Console.WriteLine($"Azure SQL Database ConnectionString: {sqlConnectionStringBuilder.ConnectionString}");
 
 var defaultAzureCredential = new DefaultAzureCredential(new DefaultAzureCredentialOptions() { TenantId = options.TenantId });
 var tokenResult = await defaultAzureCredential.GetTokenAsync(new TokenRequestContext(scopes: ["https://database.windows.net/.default"]));
