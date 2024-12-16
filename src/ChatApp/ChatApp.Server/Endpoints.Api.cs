@@ -26,6 +26,20 @@ public static partial class Endpoints
             }]
             });
 
+        app.MapGet("/surveys", async ([FromServices] SurveyService surveyService) =>
+        {
+            var surveys = await surveyService.GetSurveysAsync();
+
+            return Results.Ok(surveys);
+        });
+
+        app.MapGet("/survey/{surveyId}/questions", async ([FromServices] SurveyService surveyService, [FromRoute] Guid surveyId) =>
+        {
+            var surveyQuestions = await surveyService.GetSurveyQuestionsAsync(surveyId);
+
+            return surveyQuestions;
+        });
+
         return app;
     }
 }
