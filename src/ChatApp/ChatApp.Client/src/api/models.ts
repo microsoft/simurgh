@@ -89,6 +89,7 @@ export type ChatResponse = {
         date: string
     }
     error?: any
+    suggestedQueries: string[]
 }
 
 export type ConversationRequest = {
