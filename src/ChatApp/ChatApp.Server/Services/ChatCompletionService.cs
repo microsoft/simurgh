@@ -102,6 +102,29 @@ public class ChatCompletionService
         }
     }
 
+    public async Task<List<string>> GenerateSuggestedQuestionsAsync(List<Message> messages)
+    {
+        // todo: get metadata about the survey from cosmos
+        var surveyMetadata = "";
+
+        string conversationText = string.Join(" ", messages.Select(m => m.Role + " " + m.Content));
+
+        // Load prompt yaml
+        var promptYaml = File.ReadAllText(Path.Combine(_promptDirectory, "TextPlugin", "SuggestQuestions.yaml"));
+        var function = _kernel.CreateFunctionFromPromptYaml(promptYaml);
+
+        // Invoke the function against the conversation text
+        var result = await _kernel.InvokeAsync(function, new() { { "history", conversationText  }, { "survey_metadata", surveyMetadata } });
+
+        var factory = _kernel.Services.GetService<IHttpClientFactory>();
+
+        string completion = result.ToString()!;
+
+        // todo: parse completion to get list of suggested queries
+
+        return [completion];
+    }
+
     internal static AuthorRole ParseRole(string roleName)
     {
         return (roleName.ToLower() ?? string.Empty) switch
