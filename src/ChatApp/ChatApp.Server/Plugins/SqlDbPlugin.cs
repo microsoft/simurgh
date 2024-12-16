@@ -5,14 +5,31 @@ using Microsoft.Extensions.Options;
 using ChatApp.Server.Models.Options;
 using Microsoft.Azure.Cosmos;
 using System.Data;
+using System.Text;
 
 namespace ChatApp.Server.Plugins
 {
     public class SqlDbPlugin
     {
         private readonly SqlConnection _sqlConn;
+        private readonly string query = @"
+            SELECT 
+                t.TABLE_SCHEMA, 
+                t.TABLE_NAME, 
+                c.COLUMN_NAME, 
+                c.DATA_TYPE, 
+                c.IS_NULLABLE
+            FROM 
+                INFORMATION_SCHEMA.TABLES t
+            INNER JOIN 
+                INFORMATION_SCHEMA.COLUMNS c ON t.TABLE_NAME = c.TABLE_NAME AND t.TABLE_SCHEMA = c.TABLE_SCHEMA
+            WHERE 
+                t.TABLE_TYPE = 'BASE TABLE'
+            ORDER BY 
+                t.TABLE_SCHEMA, t.TABLE_NAME, c.ORDINAL_POSITION;
+        ";
 
-        public SqlDbPlugin(IOptions<SqlOptions> sqlOptions) 
+        public SqlDbPlugin(IOptions<SqlOptions> sqlOptions)
         {
             _sqlConn = new SqlConnection(sqlOptions.Value.ConnectionString);
         }
@@ -31,7 +48,7 @@ namespace ChatApp.Server.Plugins
 
             if (reader.HasRows)
             {
-                while (reader.Read()) 
+                while (reader.Read())
                 {
                     results.Add((IDataRecord)reader);
                 }
@@ -42,20 +59,48 @@ namespace ChatApp.Server.Plugins
 
         [KernelFunction(nameof(GetTablesDataSchemaAsync))]
         [Description("Get tables schema from Azure SQL Database")]
-        [return: Description("The schema of tables")]
-        public async Task<List<dynamic>> GetTablesDataSchemaAsync()
+        [return: Description("The schema of tables as a string")]
+        public async Task<string> GetTablesDataSchemaAsync()
         {
             _sqlConn.Open();
-            DataTable table = _sqlConn.GetSchema("Tables");
 
-            List<dynamic> tablesSchema = new List<dynamic>();
+            var tableSchemas = new Dictionary<string, List<string>>();
 
-            foreach (DataRow row in table.Rows)
+            using (SqlCommand command = new SqlCommand(query, _sqlConn))
+            using (SqlDataReader reader = command.ExecuteReader())
             {
-                tablesSchema.Add(row);
+                while (reader.Read())
+                {
+                    string schema = reader["TABLE_SCHEMA"].ToString();
+                    string tableName = reader["TABLE_NAME"].ToString();
+                    string columnName = reader["COLUMN_NAME"].ToString();
+                    string dataType = reader["DATA_TYPE"].ToString() == "uniqueidentifier" ? "guid" : reader["DATA_TYPE"].ToString();
+                    string isNullable = reader["IS_NULLABLE"].ToString();
+
+                    // Store schema info in a dictionary by table name
+                    string tableKey = $"{schema}.{tableName}";
+                    string columnDetails = $"{columnName} ({dataType})";
+
+                    if (!tableSchemas.ContainsKey(tableKey))
+                    {
+                        tableSchemas[tableKey] = new List<string>();
+                    }
+                    tableSchemas[tableKey].Add(columnDetails);
+                }
             }
 
-            return tablesSchema;
+            StringBuilder tableSchemasString = new StringBuilder();
+
+            foreach (var table in tableSchemas)
+            {
+                tableSchemasString.AppendLine($"Table: {table.Key}");
+                foreach (var column in table.Value)
+                {
+                    tableSchemasString.AppendLine($"- {column}");
+                }
+            }
+
+            return tableSchemasString.ToString();
         }
     }
 }
