@@ -31,14 +31,16 @@ public static partial class Endpoints
             var surveys = await surveyService.GetSurveysAsync();
 
             return Results.Ok(surveys);
-        });
+        }).WithName("GetSurveys")
+        .WithOpenApi();
 
-        app.MapGet("/survey/{surveyId}/questions", async ([FromServices] SurveyService surveyService, [FromRoute] Guid surveyId) =>
+        app.MapGet("/surveys/{surveyId}/questions", async ([FromServices] SurveyService surveyService, [FromRoute] Guid surveyId) =>
         {
             var surveyQuestions = await surveyService.GetSurveyQuestionsAsync(surveyId);
 
-            return surveyQuestions;
-        });
+            return Results.Ok(surveyQuestions);
+        }).WithName("GetSurveyQuestions")
+        .WithOpenApi();
 
         return app;
     }
