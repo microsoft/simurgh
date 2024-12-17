@@ -13,15 +13,21 @@ public class ChatCompletionService
     private readonly string _promptDirectory;
 
     private const string SystemMessage = $$$"""
-        You're goal is to answer user questions about survey data inside of SQL database. Do not change original prompt
-        You have access to the following plugins to achieve this: SqlDdPlugin.
+        You're goal is to answer user questions about survey data inside of a SQL database. Do not change the original prompt.
+
+        These surveys are primarily about Net Promoter Score (NPS): a measure of customer loyalty as an integer between 0 and 10.
+        """;
+    /*
+     
+     You have access to the following plugins to achieve this: SqlDdPlugin.
 
         For context, here are common accronyms in the data:
         - Net Promoter Score (NPS): a measure of customer loyalty as an integer between 0 and 10
         
-        """;
+     
+     */
 
-    public ChatCompletionService(Kernel kernel)
+    public ChatCompletionService(Kernel kernel, IConfiguration config)
     {
         _kernel = kernel;
         _promptSettings = new OpenAIPromptExecutionSettings
@@ -37,19 +43,29 @@ public class ChatCompletionService
         //var _sqlYamlManifest = Path.Combine(_promptDirectory, "SqlQueryGenerationPlugin", "SqlQueryGeneration.yaml");
         //_kernel.CreateFunctionFromPromptYaml(_sqlYamlManifest);
 
+
         _kernel.Plugins.AddFromType<SqlDbPlugin>(serviceProvider: _kernel.Services);
         _kernel.Plugins.AddFromType<AggregatesPlugin>(serviceProvider: _kernel.Services);
-
-        
     }
 
-    public async Task<Message[]> CompleteChatAsync(Message[] messages)
+    public async Task<Message[]> CompleteChatAsync(Guid surveyId, Message[] messages)
     {
         var history = new ChatHistory(SystemMessage);
 
+        // this is a little goofy but will work for now
+        history.AddUserMessage($"My surveyId is {surveyId}");
+
         messages = messages.Where(m => !string.IsNullOrWhiteSpace(m.Id)).ToArray();
 
+        // todo: check out where this got removed in git history to see if anything else important was removed
+        foreach (var item in messages)
+        {
+            history.AddUserMessage(item.Content);
+        }
+
         var response = await _kernel.GetRequiredService<IChatCompletionService>().GetChatMessageContentAsync(history, _promptSettings, _kernel);
+
+        // todo: consider removing surveyId message from history before persisting to cosmos or avoid repeated additions...
 
         // append response messages to messages array
         var responseMessages = messages.ToList();
@@ -114,7 +130,7 @@ public class ChatCompletionService
         var function = _kernel.CreateFunctionFromPromptYaml(promptYaml);
 
         // Invoke the function against the conversation text
-        var result = await _kernel.InvokeAsync(function, new() { { "history", conversationText  }, { "survey_metadata", surveyMetadata } });
+        var result = await _kernel.InvokeAsync(function, new() { { "history", conversationText }, { "survey_metadata", surveyMetadata } });
 
         var factory = _kernel.Services.GetService<IHttpClientFactory>();
 

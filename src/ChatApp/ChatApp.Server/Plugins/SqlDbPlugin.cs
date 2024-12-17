@@ -1,157 +1,82 @@
-﻿using Microsoft.SemanticKernel;
-using System.ComponentModel;
-using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Options;
-using ChatApp.Server.Models.Options;
-using System.Data;
-using System.Text;
+﻿using ChatApp.Server.Services;
+using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
-using ChatApp.Server.Services;
+using System.ComponentModel;
 
-namespace ChatApp.Server.Plugins
+namespace ChatApp.Server.Plugins;
+
+public class SqlDbPlugin
 {
-    public class SqlDbPlugin
+    private readonly IChatCompletionService _chatService;
+    private readonly SurveyService _surveyService;
+    public SqlDbPlugin(IChatCompletionService chatService, SurveyService surveyService)
     {
-        private readonly SqlConnection _sqlConn;
-        private readonly string query = @"
-            SELECT 
-                t.TABLE_SCHEMA, 
-                t.TABLE_NAME, 
-                c.COLUMN_NAME, 
-                c.DATA_TYPE, 
-                c.IS_NULLABLE
-            FROM 
-                INFORMATION_SCHEMA.TABLES t
-            INNER JOIN 
-                INFORMATION_SCHEMA.COLUMNS c ON t.TABLE_NAME = c.TABLE_NAME AND t.TABLE_SCHEMA = c.TABLE_SCHEMA
-            WHERE 
-                t.TABLE_TYPE = 'BASE TABLE'
-            ORDER BY 
-                t.TABLE_SCHEMA, t.TABLE_NAME, c.ORDINAL_POSITION;
-        ";
+        _chatService = chatService;
+        _surveyService = surveyService;
+    }
 
-        private string sqlSchema = string.Empty;
-        private string questionMetadata = string.Empty;
- 
-        public SqlDbPlugin(IOptions<SqlOptions> sqlOptions)
-        {
-            _sqlConn = new SqlConnection(sqlOptions.Value.ConnectionString);
-        }
+    // todo: play with using sys prompt to organize cot on getting schema + metadata (optionally filtering metadata down)
+    // then generate and execute query
 
-        [KernelFunction(nameof(SqlQueryGeneration))]
-        [Description("Generates a SQL query based on a SQL tables schema and questions metadata that are cross referenced to a user's question.")]
-        [return: Description("The SQL query")]
-        public async Task<string> SqlQueryGeneration(
-            [Description("The intent of the query.")] string input,
-            //[Description("The schema of SQL tables. Run GetTablesDataSchemaAsync function to get a value.")] string schema,
-            //[Description("The questions metadata. Run GetDataMetadataAsync function to get a value.")] string metadata,
-            Kernel kernel)
-        {
-            sqlSchema = await GetTablesDataSchemaAsync();
-            questionMetadata = await GetDataMetadataAsync(new Guid("3382c772-fa56-464f-97b9-ea9ff5dc3bbf"));
 
-            var chatService = kernel.GetRequiredService<ChatCompletionService>();
+    // todo: include data type for deciding on what to include in aggregates
+    //[KernelFunction(nameof(GetSurveyQuestionsAsync))]
+    //[Description("Get metadatada about the questions in the format of ID | Question | Description")]
+    //[return: Description("A pipe delimited string of question metadata")]
+    //public async Task<string> GetSurveyQuestionsAsync([Description("The ID of the survey")] Guid surveyId)
+    //{
+    //    return await _surveyService.GetSurveyMetadataAsync(surveyId);
+    //}
 
-            return string.Empty;
-        }
+    //[KernelFunction(nameof(GetTableSchemaAsync))]
+    //[Description("The schema of the tables available in Azure SQL")]
+    //[return: Description("A list of tables and their properties as text")]
+    //public async Task<string> GetTableSchemaAsync()
+    //{
+    //    return await _surveyService.GetTablesDataSchemaAsync();
+    //}
 
-        [KernelFunction(nameof(ExecuteSqlQueryAsync))]
-        [Description("Execute a query against the SQL Database.")]
-        [return: Description("The result of the query")]
-        public async Task<List<dynamic>> ExecuteSqlQueryAsync([Description("The query to run")] string query)
-        {
-            if(_sqlConn.State != ConnectionState.Open)
-                _sqlConn.Open();
+    [KernelFunction(nameof(SqlQueryGeneration))]
+    [Description("Generates a SQL query based on a SQL tables schema and questions metadata that are cross referenced to a user's question.")]
+    [return: Description("The SQL query")]
+    public async Task<string> SqlQueryGeneration(
+        [Description("The intent of the query.")] string input,
+        //[Description("A list of tables and their properties in the SQL database")] string sqlSchema,
+        //[Description("A comma delimited string of question metadata")] string questionMetadata,
+        [Description("The ID of the survey")] Guid surveyId,
+        Kernel kernel)
+    {
+        var sqlSchema = await _surveyService.GetTablesDataSchemaAsync();
+        var questionMetadata = await _surveyService.GetSurveyMetadataAsync(surveyId);
 
-            var sqlCommand = new SqlCommand(query, _sqlConn);
+        var systemPrompt = $"""
+            Given the follow SQL schema containing survey data
+            {sqlSchema}
+            with values for the SurveyQuestion table as follows
+            {questionMetadata}
+            generate a syntactically correct SQL Server query in Transact-SQL dialect to answer the user question. 
+            Only provide the SQL query. Do not encapsulate it in markdown.
+            """;
 
-            List<dynamic> results = new List<dynamic>();
+        var history = new ChatHistory(systemPrompt);
 
-            using SqlDataReader reader = sqlCommand.ExecuteReader();
+        history.AddUserMessage(input);
 
-            if (reader.HasRows)
-            {
-                while (reader.Read())
-                {
-                    results.Add((IDataRecord)reader);
-                }
-            }
+        var response = await _chatService.GetChatMessageContentAsync(history);
 
-            return results;
-        }
+        return response.ToString();
+    }
 
-        //[KernelFunction(nameof(GetTablesDataSchemaAsync))]
-        //[Description("Get schema of tables from SQL Database")]
-        //[return: Description("The schema of tables as a string")]
-        public async Task<string> GetTablesDataSchemaAsync()
-        {
-            var tableSchemas = new Dictionary<string, List<string>>();
+    [KernelFunction(nameof(ExecuteSqlQueryAsync))]
+    [Description("Execute a query against the SQL Database.")]
+    [return: Description("The result of the query")]
+    //public async Task<List<dynamic>> ExecuteSqlQueryAsync([Description("The query to run")] string query)
+    public async Task<string> ExecuteSqlQueryAsync([Description("The query to run")] string query)
+    {
+        // reason for abstraction is for improved
+        // dependency injection and lifetime of sql connection pooling
+        //return await _surveyService.ExecuteSqlQueryAsync(query);
 
-            if (_sqlConn.State != ConnectionState.Open)
-                _sqlConn.Open();
-
-            using (SqlCommand command = new SqlCommand(query, _sqlConn))
-            using (SqlDataReader reader = command.ExecuteReader())
-            {
-                while (reader.Read())
-                {
-                    string schema = reader["TABLE_SCHEMA"].ToString();
-                    string tableName = reader["TABLE_NAME"].ToString();
-                    string columnName = reader["COLUMN_NAME"].ToString();
-                    string dataType = reader["DATA_TYPE"].ToString() == "uniqueidentifier" ? "guid" : reader["DATA_TYPE"].ToString();
-                    string isNullable = reader["IS_NULLABLE"].ToString();
-
-                    // Store schema info in a dictionary by table name
-                    string tableKey = $"{schema}.{tableName}";
-                    string columnDetails = $"{columnName} ({dataType})";
-
-                    if (!tableSchemas.ContainsKey(tableKey))
-                    {
-                        tableSchemas[tableKey] = new List<string>();
-                    }
-                    tableSchemas[tableKey].Add(columnDetails);
-                }
-            }
-
-            StringBuilder tableSchemasString = new StringBuilder();
-
-            foreach (var table in tableSchemas)
-            {
-                tableSchemasString.AppendLine($"Table: {table.Key}");
-                foreach (var column in table.Value)
-                {
-                    tableSchemasString.AppendLine($"- {column}");
-                }
-            }
-
-            return tableSchemasString.ToString();
-        }
-
-        //[KernelFunction(nameof(GetDataMetadataAsync))]
-        //[Description("Get metadata of data stored in SQL table")]
-        //[return: Description("The metadata of data as a string")]
-        public async Task<string> GetDataMetadataAsync(Guid SurveyId)
-        {
-            string metadataQuery = @$"SELECT Id, Question, [Description]
-                FROM[dbo].[SurveyQuestion]
-                WHERE SurveyId = '{SurveyId}'
-            ";
-
-            StringBuilder dataMetadataString = new StringBuilder();
-
-            if (_sqlConn.State != ConnectionState.Open)
-                _sqlConn.Open();
-
-            using (SqlCommand command = new SqlCommand(metadataQuery, _sqlConn))
-            using (SqlDataReader reader = command.ExecuteReader())
-            {
-                while (reader.Read())
-                {
-                    dataMetadataString.AppendLine($"- {reader["Id"]}|\"{reader["Question"]}\"|{reader["Description"]}");
-                }
-            }
-
-            return dataMetadataString.ToString();
-        }
+        return query;
     }
 }
