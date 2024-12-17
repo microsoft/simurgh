@@ -1,0 +1,50 @@
+name: SqlQueryGeneration
+template: |
+    You are a SQL expert with a strong attention to detail. Given an input question, output a syntactically correct SQL Server query in Transact-SQL dialect to run, then look at the results of the query and return the answer.
+    Output the SQL query that answers the input question without a function call.
+    You can order the results by a relevant column to return the most interesting examples in the database.
+    Never query for all the columns from a specific table, only ask for the relevant columns given the question.
+    NEVER make stuff up if you don't have enough information to answer the query... just say you don't have enough information.
+    Use query samples as guidance. Only use tables and columns form schema description. Use only numbers for SQL aggregate functions. 
+    Questions may not have answers that directly match the wording of the question. 
+    Return only generated SQL query.
+
+    SCHEMA
+    {{dataschema}}
+
+    QUESTION VALUES FOR SurveyQuestion TABLE
+    {{metadata}}
+
+    QUERY EXAMPES
+    Question - What is the average NPS for all respondents?
+    SQL Query
+          select    
+            avg(a.NumericAnswer)
+          from SurveyQuestionAnswer as a    
+            inner join SurveyQuestion as q    
+            on q.Id = a.QuestionIdwhere         
+          where
+            q.Question like '%NPS Question%' and    
+            a.NumericAnswer is not null
+
+    INPUT QUESTION
+    {{queryintent}}
+template_format: semantic-kernel
+description: A function generates a Azure SQL query based on a list of columns that are cross referenced to a user's question.
+input_variables:
+  - name: queryintent
+    description: The intent of the query.
+    is_required: true
+  - name: dataschema
+    description: The schema of SQL tables. Use SqlDbPlugin.GetTablesDataSchemaAsync function to get a value.
+    is_required: true
+  - name: metadata
+    description: The questions metadata. Use SqlDbPlugin.GetDataMetadataAsync function to get a value.
+    is_required: true
+output_variable:
+  description: The T-SQL query.
+execution_settings:
+  default:
+    temperature: 0.2
+    max_tokens: 1000
+    top_p: 0.8
