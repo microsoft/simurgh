@@ -15,6 +15,7 @@ public static partial class Endpoints
             .WithName("GetFrontendSettings")
             .WithOpenApi();
 
+        // todo: resolve complet chat endpoint at later date... issue with guid required for surveyid
         app.MapPost("/conversation", async ([FromServices] ChatCompletionService chat, [FromBody] ConversationRequest history) =>
             new ChatCompletion
             {
@@ -22,7 +23,7 @@ public static partial class Endpoints
                 ApimRequestId = Guid.NewGuid().ToString(),
                 Created = DateTime.UtcNow,
                 Choices = [new() {
-                Messages = [.. await chat.CompleteChatAsync([.. history.Messages])]
+                Messages = [.. await chat.CompleteChatAsync(Guid.NewGuid(), [.. history.Messages])]
             }]
             });
 

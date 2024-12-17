@@ -32,7 +32,8 @@ public static partial class Endpoints
         [FromServices] ChatCompletionService chat,
         [FromRoute] string surveyId)
     {
-        Console.Write("todo: fetch metadata from db about surveyId", surveyId);
+        if (!Guid.TryParse(surveyId, out var surveyIdGuid))
+            return Results.BadRequest("Invalid surveyId");
 
         var user = GetUser(context);
         string conversationId = conversation.Id;
@@ -70,7 +71,7 @@ public static partial class Endpoints
 
         // --- Do the chat completion ---
         // --- Write the completion messages to the conversation history in cosmos ---
-        var completionResponse = await chat.CompleteChatAsync([.. conversation.Messages]);
+        var completionResponse = await chat.CompleteChatAsync(surveyIdGuid, [.. conversation.Messages]);
         var completionResult = new ChatCompletion
         {
             Id = Guid.NewGuid().ToString(),
@@ -81,6 +82,9 @@ public static partial class Endpoints
             }],
             HistoryMetadata = historyMetadata
         };
+
+        // get suggested questions based on history
+        completionResult.SuggestedQueries = await chat.GenerateSuggestedQuestionsAsync(surveyIdGuid, conversation.Messages);
 
         conversationHistory!.Messages = [.. completionResponse.Select(m => new HistoryMessage(m))];
         _ = await history.UpdateConversationAsync(user.UserPrincipalId, conversationHistory);

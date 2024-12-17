@@ -12,6 +12,7 @@ public class ChatCompletion
     [JsonPropertyName("history_metadata")]
     public Dictionary<string, string> HistoryMetadata { get; set; } = [];
     public string ApimRequestId { get; set; } = string.Empty;
+    public List<string> SuggestedQueries { get; set; } = [];
 }
 
 public class ChoiceModel

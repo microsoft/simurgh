@@ -130,6 +130,19 @@
     align-items: center;
 }
 
+.chatWrapper {
+    position: sticky;
+    flex: 0 0 100px;
+    padding-top: 12px;
+    padding-bottom: 24px;
+    padding-left: 24px;
+    padding-right: 24px;
+    width: calc(100% - 100px);
+    max-width: 1028px;
+    margin-bottom: 50px;
+    margin-top: 8px;
+}
+
 .chatInput {
     position: sticky;
     flex: 0 0 100px;

@@ -1,5 +1,6 @@
 ﻿using ChatApp.Server.Models;
 using Microsoft.Data.SqlClient;
+using System.Text;
 
 namespace ChatApp.Server.Services;
 
@@ -73,4 +74,115 @@ public class SurveyService
 
         return questions;
     }
+
+
+    public async Task<List<dynamic>> ExecuteSqlQueryAsync(string query)
+    {
+        using var connection = new SqlConnection(_connectionString);
+        connection.Open();
+
+        var sqlCommand = new SqlCommand(query, connection);
+
+        var results = new List<dynamic>();
+
+        using SqlDataReader reader = await sqlCommand.ExecuteReaderAsync();
+
+        if (!reader.HasRows)
+            return results;
+
+        // consider yield?
+        while (reader.Read())
+        {
+            results.Add(reader);
+        }
+
+        return results;
+    }
+
+    public async Task<string> GetSurveyMetadataAsync(Guid SurveyId)
+    {
+        string metadataQuery = @$"SELECT Id, Question, [Description]
+                FROM[dbo].[SurveyQuestion]
+                WHERE SurveyId = '{SurveyId}'
+            ";
+
+        var dataMetadataString = new StringBuilder();
+
+        using var connection = new SqlConnection(_connectionString);
+        connection.Open();
+
+        using var command = new SqlCommand(metadataQuery, connection);
+        using var reader = await command.ExecuteReaderAsync();
+
+        while (reader.Read())
+        {
+            dataMetadataString.AppendLine($"- {reader["Id"]}|\"{reader["Question"]}\"|{reader["Description"]}");
+        }
+
+        return dataMetadataString.ToString();
+    }
+    internal async Task<string> GetTablesDataSchemaAsync()
+    {
+        var tableSchemas = new Dictionary<string, List<string>>();
+
+        using var connection = new SqlConnection(_connectionString);
+        connection.Open();
+
+        var query = @"
+            SELECT 
+                t.TABLE_SCHEMA, 
+                t.TABLE_NAME, 
+                c.COLUMN_NAME, 
+                c.DATA_TYPE, 
+                c.IS_NULLABLE
+            FROM 
+                INFORMATION_SCHEMA.TABLES t
+            INNER JOIN 
+                INFORMATION_SCHEMA.COLUMNS c ON t.TABLE_NAME = c.TABLE_NAME AND t.TABLE_SCHEMA = c.TABLE_SCHEMA
+            WHERE 
+                t.TABLE_TYPE = 'BASE TABLE'
+            ORDER BY 
+                t.TABLE_SCHEMA, t.TABLE_NAME, c.ORDINAL_POSITION;
+        ";
+
+        using var command = new SqlCommand(query, connection);
+        using var reader = await command.ExecuteReaderAsync();
+
+        while (reader.Read())
+        {
+            string schema = reader["TABLE_SCHEMA"].ToString() ?? string.Empty;
+            string tableName = reader["TABLE_NAME"].ToString() ?? string.Empty;
+            string columnName = reader["COLUMN_NAME"].ToString() ?? string.Empty;
+            string dataType = reader["DATA_TYPE"].ToString() == "uniqueidentifier" ? "guid" : reader["DATA_TYPE"].ToString() ?? string.Empty;
+            string isNullable = reader["IS_NULLABLE"].ToString() ?? string.Empty;
+
+            // Store schema info in a dictionary by table name
+            string tableKey = $"{schema}.{tableName}";
+            string columnDetails = $"{columnName} ({dataType})";
+
+            if (!tableSchemas.ContainsKey(tableKey))
+            {
+                tableSchemas[tableKey] = new List<string>();
+            }
+            tableSchemas[tableKey].Add(columnDetails);
+        }
+
+        var tableSchemasString = new StringBuilder();
+
+        foreach (var table in tableSchemas)
+        {
+            tableSchemasString.AppendLine($"Table: {table.Key}");
+
+            foreach (var column in table.Value)
+            {
+                tableSchemasString.AppendLine($"- {column}");
+            }
+        }
+
+        return tableSchemasString.ToString();
+    }
+
+
+
+
 }

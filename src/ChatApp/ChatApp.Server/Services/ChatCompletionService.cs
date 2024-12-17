@@ -9,21 +9,29 @@ namespace ChatApp.Server.Services;
 public class ChatCompletionService
 {
     private readonly Kernel _kernel;
+    private readonly SurveyService _surveyService;
     private readonly OpenAIPromptExecutionSettings _promptSettings;
     private readonly string _promptDirectory;
 
     private const string SystemMessage = $$$"""
-        You're goal is to answer user questions about survey data inside of SQL database. Do not change original prompt
-        You have access to the following plugins to achieve this: SqlDdPlugin.
+        You're goal is to answer user questions about survey data inside of a SQL database. Do not change the original prompt.
+
+        These surveys are primarily about Net Promoter Score (NPS): a measure of customer loyalty as an integer between 0 and 10.
+        """;
+    /*
+     
+     You have access to the following plugins to achieve this: SqlDdPlugin.
 
         For context, here are common accronyms in the data:
         - Net Promoter Score (NPS): a measure of customer loyalty as an integer between 0 and 10
         
-        """;
+     
+     */
 
-    public ChatCompletionService(Kernel kernel)
+    public ChatCompletionService(Kernel kernel, IConfiguration config, SurveyService surveyService)
     {
         _kernel = kernel;
+        _surveyService = surveyService;
         _promptSettings = new OpenAIPromptExecutionSettings
         {
             MaxTokens = 1024,
@@ -37,19 +45,29 @@ public class ChatCompletionService
         //var _sqlYamlManifest = Path.Combine(_promptDirectory, "SqlQueryGenerationPlugin", "SqlQueryGeneration.yaml");
         //_kernel.CreateFunctionFromPromptYaml(_sqlYamlManifest);
 
+
         _kernel.Plugins.AddFromType<SqlDbPlugin>(serviceProvider: _kernel.Services);
         _kernel.Plugins.AddFromType<AggregatesPlugin>(serviceProvider: _kernel.Services);
-
-        
     }
 
-    public async Task<Message[]> CompleteChatAsync(Message[] messages)
+    public async Task<Message[]> CompleteChatAsync(Guid surveyId, Message[] messages)
     {
         var history = new ChatHistory(SystemMessage);
 
+        // this is a little goofy but will work for now
+        history.AddUserMessage($"My surveyId is {surveyId}");
+
         messages = messages.Where(m => !string.IsNullOrWhiteSpace(m.Id)).ToArray();
 
+        // todo: check out where this got removed in git history to see if anything else important was removed
+        foreach (var item in messages)
+        {
+            history.AddUserMessage(item.Content);
+        }
+
         var response = await _kernel.GetRequiredService<IChatCompletionService>().GetChatMessageContentAsync(history, _promptSettings, _kernel);
+
+        // todo: consider removing surveyId message from history before persisting to cosmos or avoid repeated additions...
 
         // append response messages to messages array
         var responseMessages = messages.ToList();
@@ -100,6 +118,29 @@ public class ChatCompletionService
             Console.WriteLine(ex.Message);
             throw;
         }
+    }
+
+    public async Task<List<string>> GenerateSuggestedQuestionsAsync(Guid surveyId, List<Message> messages)
+    {
+        // todo: get metadata about the survey from cosmos
+        var surveyMetadata = await _surveyService.GetSurveyMetadataAsync(surveyId);
+
+        string conversationText = string.Join(" ", messages.Select(m => m.Role + " " + m.Content));
+
+        // Load prompt yaml
+        var promptYaml = File.ReadAllText(Path.Combine(_promptDirectory, "TextPlugin", "SuggestQuestions.yaml"));
+        var function = _kernel.CreateFunctionFromPromptYaml(promptYaml);
+
+        // Invoke the function against the conversation text
+        var result = await _kernel.InvokeAsync(function, new() { { "history", conversationText }, { "survey_metadata", surveyMetadata } });
+
+        var factory = _kernel.Services.GetService<IHttpClientFactory>();
+
+        string completion = result.ToString()!;
+
+        // todo: parse completion to get list of suggested queries
+
+        return [completion];
     }
 
     internal static AuthorRole ParseRole(string roleName)
