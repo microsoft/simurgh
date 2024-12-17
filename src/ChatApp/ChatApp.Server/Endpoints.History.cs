@@ -84,7 +84,7 @@ public static partial class Endpoints
         };
 
         // get suggested questions based on history
-        completionResult.SuggestedQueries = await chat.GenerateSuggestedQuestionsAsync(conversation.Messages);
+        completionResult.SuggestedQueries = await chat.GenerateSuggestedQuestionsAsync(surveyIdGuid, conversation.Messages);
 
         conversationHistory!.Messages = [.. completionResponse.Select(m => new HistoryMessage(m))];
         _ = await history.UpdateConversationAsync(user.UserPrincipalId, conversationHistory);

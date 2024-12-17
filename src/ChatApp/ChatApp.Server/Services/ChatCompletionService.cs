@@ -9,6 +9,7 @@ namespace ChatApp.Server.Services;
 public class ChatCompletionService
 {
     private readonly Kernel _kernel;
+    private readonly SurveyService _surveyService;
     private readonly OpenAIPromptExecutionSettings _promptSettings;
     private readonly string _promptDirectory;
 
@@ -27,9 +28,10 @@ public class ChatCompletionService
      
      */
 
-    public ChatCompletionService(Kernel kernel, IConfiguration config)
+    public ChatCompletionService(Kernel kernel, IConfiguration config, SurveyService surveyService)
     {
         _kernel = kernel;
+        _surveyService = surveyService;
         _promptSettings = new OpenAIPromptExecutionSettings
         {
             MaxTokens = 1024,
@@ -118,10 +120,10 @@ public class ChatCompletionService
         }
     }
 
-    public async Task<List<string>> GenerateSuggestedQuestionsAsync(List<Message> messages)
+    public async Task<List<string>> GenerateSuggestedQuestionsAsync(Guid surveyId, List<Message> messages)
     {
         // todo: get metadata about the survey from cosmos
-        var surveyMetadata = "";
+        var surveyMetadata = await _surveyService.GetSurveyMetadataAsync(surveyId);
 
         string conversationText = string.Join(" ", messages.Select(m => m.Role + " " + m.Content));
 
