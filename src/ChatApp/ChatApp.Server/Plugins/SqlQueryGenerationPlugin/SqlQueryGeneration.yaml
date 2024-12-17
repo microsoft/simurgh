@@ -1,6 +1,6 @@
 name: SqlQueryGeneration
 template: |
-    You are a SQL expert with a strong attention to detail. Given an input question, output a syntactically correct SQL Server query in Transact-SQL dialect to run, then look at the results of the query and return the answer. When generating the query:
+    You are a SQL expert with a strong attention to detail. Given an input question, output a syntactically correct SQL Server query in Transact-SQL dialect to run, then look at the results of the query and return the answer.
     Output the SQL query that answers the input question without a function call.
     You can order the results by a relevant column to return the most interesting examples in the database.
     Never query for all the columns from a specific table, only ask for the relevant columns given the question.
@@ -9,72 +9,25 @@ template: |
     Questions may not have answers that directly match the wording of the question. 
     Return only generated SQL query.
 
-    SCHEMA:
+    SCHEMA
     {{dataschema}}
 
-    QUESTION VALUES FOR SurveyQuestion TABLE:
-    - "Is NAC Account"
-    - "Quality of Finished Implementation-We'd like to know more about your Implementation and Training  experience."
-    - "Responded Date"
-    - "Thank you for telling us how likely you are to recommend Omnicell. Please share why you gave this score."
-    - "Solution met your expectations-We'd like to know more about your Buying experience."
-    - "Customer Success Team understands my business needs-We'd like to know more about your Customer Success Team experiences. How satisfied are you with the following areas:"
-    - "Effectiveness of your training-We'd like to know more about your Implementation and Training  experience."
-    - "Ease of getting help / support-We'd like to know more about your Technical Assistance Support experience. How s"
-    - "Facility Type"
-    - "We'd like to know which product(s) you had in mind when asnwering these question"
-    - "What one improvement would you like Omnicell to make?"
-    - "Effectiveness of the Technical Assistance Center (Call Center / Help Desk)-We'd like to know more about your Technical Assistance Support experience. How s"
-    - "Survey Title"
-    - "Account Territory"
-    - "Sales Account Team understands my business needs-Q5"
-    - "Satisfaction with the overall Implementation and Training experience.-Please rate your satisfaction with the overall Implementation and Training exper"
-    - "Created Date"
-    - "Sales Account Team is accessible and responsive to my requests-Q5"
-    - "Availability of parts-We'd like to know more about your Technical Assistance Support experience. How s"
-    - "Ease of Upgrades-Q3"
-    - "Satisfaction with the overall Buying experience.-Please rate your satisfaction with the overall Buying experience."
-    - "SFDC Contact ID"
-    - "NPS Question"
-    - "Region"
-    - "Sales Account Team is knowledgeable about Omnicell products -Q5"
-    - "Ease of Implementation-We'd like to know more about your Implementation and Training  experience."
-    - "SAP Customer Number"
-    - "Segment"
-    - "Ease of Contracting / Renewal Process-We'd like to know more about your Buying experience."
-    - "Omnicenter Version"
-    - "SFDC Account Id"
-    - "Name"
-    - "Overall satisfaction with your Sales Account Team-Please rate your overall satisfaction with your Sales / Account Team"
-    - "Company Top Level Parent Name and CSN"
-    - "Overall satisfaction with the Omnicell Products/Solutions-Please rate your overall satisfaction with the Omnicell Product/Solutions"
-    - "Helps make my job easier / saves time-Q3"
-    - "Survey Role"
-    - "Effectiveness of the Technical Service Engineers (Field Technicians)-We'd like to know more about your Technical Assistance Support experience. How s"
-    - "Contract represents good value-We'd like to know more about your Buying experience."
-    - "Invoicing Process-We'd like to know more about your Buying experience."
-    - "Customer Success Team is accessible and responsive to my requests-We'd like to know more about your Customer Success Team experiences. How satisfied are you with the following areas:"
-    - "SFDC Contact Survey Contact Type"
-    - "Satisfaction with the overall Technical Assistance Support experience (both Call Center and Field Support).-Please rate your satisfaction with the overall Technical Assistance Support expe"
-    - "Product Performance (uptime, works without faults)-Q3"
-    - "Overall satisfaction with your Customer Success Team-Please rate your overall satisfaction with your Customer Success Team"
-    - "Participant GSID"
-    - "Customer Success Team is knowledgeable about Omnicell products -We'd like to know more about your Customer Success Team experiences. How satisfied are you with the following areas:"
-    - "Quality of Implementation Team-We'd like to know more about your Implementation and Training  experience."
+    QUESTION VALUES FOR SurveyQuestion TABLE
+    {{metadata}}
 
-    QUERY EXAMPES:
-    - Question: What is the average NPS for all respondents?
-    - SQL Query:
-      select    
-        avg(a.NumericAnswer)
-      from SurveyQuestionAnswer as a    
-        inner join SurveyQuestion as q    
-        on q.Id = a.QuestionIdwhere         
-      where
-        q.Question like '%NPS Question%' and    
-        a.NumericAnswer is not null
+    QUERY EXAMPES
+    Question - What is the average NPS for all respondents?
+    SQL Query
+          select    
+            avg(a.NumericAnswer)
+          from SurveyQuestionAnswer as a    
+            inner join SurveyQuestion as q    
+            on q.Id = a.QuestionIdwhere         
+          where
+            q.Question like '%NPS Question%' and    
+            a.NumericAnswer is not null
 
-    INPUT QUESTION:
+    INPUT QUESTION
     {{queryintent}}
 template_format: semantic-kernel
 description: A function generates a Azure SQL query based on a list of columns that are cross referenced to a user's question.
@@ -83,10 +36,13 @@ input_variables:
     description: The intent of the query.
     is_required: true
   - name: dataschema
-    description: The schema of SQL tables.
+    description: The schema of SQL tables. Use SqlDbPlugin.GetTablesDataSchemaAsync function to get a value.
+    is_required: true
+  - name: metadata
+    description: The questions metadata. Use SqlDbPlugin.GetDataMetadataAsync function to get a value.
     is_required: true
 output_variable:
-  description: a Azure SQL query.
+  description: The T-SQL query.
 execution_settings:
   default:
     temperature: 0.2
