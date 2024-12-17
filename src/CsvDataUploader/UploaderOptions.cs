@@ -16,6 +16,7 @@ public class UploaderOptions
     public string ContainerName { get; set; } = string.Empty;
     public string PartitionKey { get; set; } = "partitionKey";
     public string CsvFilePath { get; set; } = string.Empty;
+    public string CsvHeaderDescriptionsFilePath { get; set; } = string.Empty;
     // how many records to upload at once
     public int BatchSize { get; set; } = 5;
 
