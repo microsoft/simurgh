@@ -116,7 +116,7 @@ public class SurveyService
 
         while (reader.Read())
         {
-            dataMetadataString.AppendLine($"- {reader["Id"]}|\"{reader["Question"]}\"|{reader["Description"]}");
+            dataMetadataString.AppendLine($"- {reader["Id"]}|\"{reader["Question"]}\"|\"{reader["Description"]}\"");
         }
 
         return dataMetadataString.ToString();

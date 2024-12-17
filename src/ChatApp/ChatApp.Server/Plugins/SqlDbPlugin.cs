@@ -54,7 +54,9 @@ public class SqlDbPlugin
             {sqlSchema}
             with values for the SurveyQuestion table as follows
             {questionMetadata}
-            generate a syntactically correct SQL Server query in Transact-SQL dialect to answer the user question. 
+            generate a syntactically correct SQL Server query in Transact-SQL dialect to answer the user question. Only use tables (except the Survey table) and columns form schema description. 
+            Pick the right question based on SurveyQuestion table's metadata. Use only Id and Description columns for filtering SurveyQuestion table. Only only numbers for SQL aggregate functions.
+            The SurveyResponse table has one to many relationship to SurveyQuestionAnswer where SurveyResponses represent individual responses to a given survey with the answers to the SurveyQuestions being records in the SurveyQuestionAnswer table.
             Only provide the SQL query. Do not encapsulate it in markdown.
             """;
 
