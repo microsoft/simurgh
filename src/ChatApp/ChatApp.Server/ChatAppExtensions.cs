@@ -32,6 +32,12 @@ internal static class ChatAppExtensions
         services.AddScoped<ChatCompletionService>();
         services.AddSingleton(services => new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
+        services.AddScoped(sp =>
+        {
+            var connStr = config.GetConnectionString("SurveysDatabase") ?? throw new ArgumentNullException("ConnectionStrings:SurveysDatabase");
+            return new SurveyService(connStr);
+        });
+
         var isChatEnabled = frontendSettings?.HistoryEnabled ?? false;
 
         if (isChatEnabled)

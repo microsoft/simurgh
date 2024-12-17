@@ -43,6 +43,10 @@ export default defineConfig({
     },
     server: {
         proxy: {
+            '^/surveys': {
+                target,
+                secure: false
+            },
             '^/frontend_settings': {
                 target,
                 secure: false
