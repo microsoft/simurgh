@@ -95,34 +95,23 @@ public class ChatCompletionService
 
     public async Task<string> GenerateTitleAsync(List<Message> messages)
     {
-        try
-        {
-            // Create a conversation string from the messages
-            string conversationText = string.Join(" ", messages.Select(m => m.Role + " " + m.Content));
+        // Create a conversation string from the messages
+        string conversationText = string.Join(" ", messages.Select(m => m.Role + " " + m.Content));
 
-            // Load prompt yaml
-            var promptYaml = File.ReadAllText(Path.Combine(_promptDirectory, "TextPlugin", "SummarizeConversation.yaml"));
-            var function = _kernel.CreateFunctionFromPromptYaml(promptYaml);
+        // Load prompt yaml
+        var promptYaml = File.ReadAllText(Path.Combine(_promptDirectory, "TextPlugin", "SummarizeConversation.yaml"));
+        var function = _kernel.CreateFunctionFromPromptYaml(promptYaml);
 
-            // Invoke the function against the conversation text
-            var result = await _kernel.InvokeAsync(function, new() { { "history", conversationText } });
+        // Invoke the function against the conversation text
+        var result = await _kernel.InvokeAsync(function, new() { { "history", conversationText } });
 
-            var factory = _kernel.Services.GetService<IHttpClientFactory>();
+        string completion = result.ToString()!;
 
-            string completion = result.ToString()!;
-
-            return completion;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine(ex.Message);
-            throw;
-        }
+        return completion;
     }
 
     public async Task<List<string>> GenerateSuggestedQuestionsAsync(Guid surveyId, List<Message> messages)
     {
-        // todo: get metadata about the survey from cosmos
         var surveyMetadata = await _surveyService.GetSurveyMetadataAsync(surveyId);
 
         string conversationText = string.Join(" ", messages.Select(m => m.Role + " " + m.Content));
@@ -131,16 +120,15 @@ public class ChatCompletionService
         var promptYaml = File.ReadAllText(Path.Combine(_promptDirectory, "TextPlugin", "SuggestQuestions.yaml"));
         var function = _kernel.CreateFunctionFromPromptYaml(promptYaml);
 
+
         // Invoke the function against the conversation text
-        var result = await _kernel.InvokeAsync(function, new() { { "history", conversationText }, { "survey_metadata", surveyMetadata } });
+        var result = await _kernel.InvokeAsync(function, new KernelArguments() {
+            { "history", conversationText },
+            { "survey_metadata", surveyMetadata }
+        });
+        var completion = result.ToString()!;
 
-        var factory = _kernel.Services.GetService<IHttpClientFactory>();
-
-        string completion = result.ToString()!;
-
-        // todo: parse completion to get list of suggested queries
-
-        return [completion];
+        return completion.Split('\n').ToList();
     }
 
     internal static AuthorRole ParseRole(string roleName)
