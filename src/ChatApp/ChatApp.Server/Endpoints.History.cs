@@ -20,7 +20,7 @@ public static partial class Endpoints
         app.MapPost("/history/message_feedback", MessageFeedbackAsync);
         app.MapGet("/history/list", ListHistoryAsync);
         app.MapPost("/history/read", ReadHistoryAsync);
-        app.MapPost("/history/generate", GenerateHistoryAsync);
+        app.MapPost("/history/generate/{surveyId}", GenerateHistoryAsync);
 
         return app;
     }
@@ -29,8 +29,11 @@ public static partial class Endpoints
         HttpContext context,
         [FromBody] ConversationRequest conversation,
         [FromServices] CosmosConversationService history,
-        [FromServices] ChatCompletionService chat)
+        [FromServices] ChatCompletionService chat,
+        [FromRoute] string surveyId)
     {
+        Console.Write("todo: fetch metadata from db about surveyId", surveyId);
+
         var user = GetUser(context);
         string conversationId = conversation.Id;
 
