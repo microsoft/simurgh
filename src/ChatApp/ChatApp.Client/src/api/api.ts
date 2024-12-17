@@ -317,17 +317,16 @@ export const historyEnsure = async (): Promise<CosmosDBHealth> => {
 export const frontendSettings = async (): Promise<Response | null> => {
   const response = await fetch('/frontend_settings', {
     method: 'GET'
-  })
-    .then(res => {
+    }).then(res => {
       return res.json()
-    })
-    .catch(_err => {
+    }).catch(_err => {
       console.error('There was an issue fetching your data.')
       return null
     })
 
   return response
 }
+
 export const historyMessageFeedback = async (conversationId: string, messageId: string, feedback: string): Promise<Response> => {
   const response = await fetch('/history/message_feedback', {
     method: 'POST',
@@ -353,4 +352,30 @@ export const historyMessageFeedback = async (conversationId: string, messageId: 
       return errRes
     })
   return response
+}
+
+export const getSurveys = async (): Promise<Survey[]> => {
+    const response = await fetch('/surveys', {
+        method: 'GET'
+    }).then(res => {
+        return res.json()
+    }).catch(_err => {
+        console.error('There was an issue fetching surveys.')
+        return []
+    });
+
+    return response
+}
+
+export const getSurveyQuestions = async (surveyId: string): Promise<SurveyQuestion[]> => {
+    const response = await fetch(`/surveys/${surveyId}/questions`, {
+        method: 'GET'
+    }).then(res => {
+        return res.json()
+    }).catch(_err => {
+        console.error('There was an issue fetching survey questions.')
+        return new Response()
+    });
+
+    return response
 }
