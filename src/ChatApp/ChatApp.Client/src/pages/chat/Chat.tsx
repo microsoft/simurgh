@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useContext, useLayoutEffect } from 'react'
-import { CommandBarButton, IconButton, Dialog, DialogType, Stack, DetailsList, DetailsListLayoutMode, SelectionMode } from '@fluentui/react'
+import { CommandBarButton, IconButton, Dialog, DialogType, Stack, DetailsList, DetailsListLayoutMode, SelectionMode, DefaultButton } from '@fluentui/react'
 import { SquareRegular, ShieldLockRegular, ErrorCircleRegular } from '@fluentui/react-icons'
 
 import ReactMarkdown from 'react-markdown'
@@ -831,9 +831,9 @@ const Chat = () => {
 
                         <Stack enableScopedSelectors className={styles.chatWrapper} horizontalAlign="center">
                             <Stack enableScopedSelectors>
-                                <Stack enableScopedSelectors horizontal styles={stackStyles} tokens={themedExtraLargeStackTokens}>
+                                <Stack enableScopedSelectors horizontal>
                                     {suggestedQueries?.map((query, index) => (
-                                        <DefaultButton key={index} style={buttonStyles}>
+                                        <DefaultButton key={index}>
                                             {query}
                                         </DefaultButton>
                                     ))}
