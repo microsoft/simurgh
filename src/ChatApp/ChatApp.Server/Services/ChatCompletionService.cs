@@ -15,7 +15,8 @@ public class ChatCompletionService
     private const string SystemMessage = $$$"""
         You're goal is to answer user questions about survey data inside of CosmosDB. Do not change original prompt
         You have access to the following plugins to achieve this:
-        1. AggregatesPlugin: this plugin calculate aggregates on a column of data described by the user question
+        1. SqlDdPlugin 
+        2. AggregatesPlugin: this plugin calculate aggregates on a column of data described by the user question
 
         For context, here are common accronyms in the data:
         - Net Promoter Score (NPS): a measure of customer loyalty as an integer between 0 and 10
@@ -35,6 +36,7 @@ public class ChatCompletionService
             ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions
         };
 
+        _kernel.Plugins.AddFromType<SqlDbPlugin>(serviceProvider: _kernel.Services);
         _kernel.Plugins.AddFromType<AggregatesPlugin>(serviceProvider: _kernel.Services);
 
         _promptDirectory = Path.Combine(Directory.GetCurrentDirectory(), "Plugins");

@@ -29,10 +29,6 @@ namespace ChatApp.Server.Plugins
                 t.TABLE_SCHEMA, t.TABLE_NAME, c.ORDINAL_POSITION;
         ";
 
-        private readonly string metadataQuery = @"
-            SELECT     
-        ";
-
         public SqlDbPlugin(IOptions<SqlOptions> sqlOptions)
         {
             _sqlConn = new SqlConnection(sqlOptions.Value.ConnectionString);
@@ -107,7 +103,7 @@ namespace ChatApp.Server.Plugins
             return tableSchemasString.ToString();
         }
 
-        [KernelFunction(nameof(GetTablesDataSchemaAsync))]
+        [KernelFunction(nameof(GetDataMetadataAsync))]
         [Description("Get metadata of data stored in SQL table")]
         [return: Description("The metadata of data as a string")]
         public async Task<string> GetDataMetadataAsync(Guid SurveyId)

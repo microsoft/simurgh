@@ -20,6 +20,7 @@ internal static class ChatAppExtensions
         services.AddOptions<AzureOpenAIOptions>().Bind(config.GetSection(nameof(AzureOpenAIOptions)));
         var stuff = config.GetSection(nameof(CosmosOptions));
         services.AddOptions<CosmosOptions>().Bind(config.GetSection(nameof(CosmosOptions)));
+        services.AddOptions<SqlOptions>().Bind(config.GetSection(nameof(SqlOptions)));
     }
 
     internal static void AddChatAppServices(this IServiceCollection services, IConfiguration config)
@@ -77,6 +78,7 @@ internal static class ChatAppExtensions
             var jsonOptions = services.GetRequiredService<JsonSerializerOptions>();
             var aoaiOpts = services.GetRequiredService<IOptionsMonitor<AzureOpenAIOptions>>();
             var cosmosOptions = services.GetRequiredService<IOptions<CosmosOptions>>();
+            var sqlOptions = services.GetRequiredService<IOptions<SqlOptions>>();
 
             // Create the KernelBuilder
             var builder = Kernel.CreateBuilder();
@@ -87,6 +89,7 @@ internal static class ChatAppExtensions
             builder.Services.AddSingleton(cosmosOptions);
             builder.Services.AddSingleton(aoaiOpts);
             builder.Services.AddSingleton(jsonOptions);
+            builder.Services.AddSingleton(sqlOptions);
 
             // Register the CosmosClient with the Kernel services collection
             builder.Services.AddSingleton(services =>
