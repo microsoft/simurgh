@@ -19,31 +19,35 @@ public class Program
         #region OpenTelemetry
 
         var connectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
-        AppContext.SetSwitch("Microsoft.SemanticKernel.Experimental.GenAI.EnableOTelDiagnosticsSensitive", true);
 
-        // Add OpenTelemetry and configure it to use Azure Monitor.
-        builder.Services.AddOpenTelemetry()
-            .ConfigureResource(resource => resource
-                .AddService(serviceName: builder.Environment.ApplicationName))
-            .WithTracing(tracing => tracing
-                .AddSource("Microsoft.SemanticKernel*")
-                .AddAspNetCoreInstrumentation())
-            .WithMetrics(metrics => metrics
-                .AddMeter("Microsoft.SemanticKernel*")
-                .AddAspNetCoreInstrumentation())
-            .UseAzureMonitor();
-
-        using var loggerFactory = LoggerFactory.Create(builder =>
+        if (!string.IsNullOrWhiteSpace(connectionString))
         {
-            // Add OpenTelemetry as a logging provider
-            builder.AddOpenTelemetry(options =>
+            AppContext.SetSwitch("Microsoft.SemanticKernel.Experimental.GenAI.EnableOTelDiagnosticsSensitive", true);
+
+            // Add OpenTelemetry and configure it to use Azure Monitor.
+            builder.Services.AddOpenTelemetry()
+                .ConfigureResource(resource => resource
+                    .AddService(serviceName: builder.Environment.ApplicationName))
+                .WithTracing(tracing => tracing
+                    .AddSource("Microsoft.SemanticKernel*")
+                    .AddAspNetCoreInstrumentation())
+                .WithMetrics(metrics => metrics
+                    .AddMeter("Microsoft.SemanticKernel*")
+                    .AddAspNetCoreInstrumentation())
+                .UseAzureMonitor();
+
+            using var loggerFactory = LoggerFactory.Create(builder =>
             {
-                options.AddAzureMonitorLogExporter(options => options.ConnectionString = connectionString);
-                // Format log messages. This is default to false.
-                options.IncludeFormattedMessage = true;
+                // Add OpenTelemetry as a logging provider
+                builder.AddOpenTelemetry(options =>
+                {
+                    options.AddAzureMonitorLogExporter(options => options.ConnectionString = connectionString);
+                    // Format log messages. This is default to false.
+                    options.IncludeFormattedMessage = true;
+                });
+                builder.SetMinimumLevel(LogLevel.Information);
             });
-            builder.SetMinimumLevel(LogLevel.Information);
-        });
+        }
 
         #endregion
 
