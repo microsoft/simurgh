@@ -25,21 +25,21 @@ public class Program
         var options = new UploaderOptions();
         configuration.GetSection(nameof(UploaderOptions)).Bind(options);
 
-        //Console.WriteLine("Sql Server Endpoint: " + options.Endpoint);
-        //Console.WriteLine("Sql Database Name: " + options.DatabaseName);
+        Console.WriteLine("Sql Server Endpoint: " + options.Endpoint);
+        Console.WriteLine("Sql Database Name: " + options.DatabaseName);
 
-        //var sqlConnectionStringBuilder = new SqlConnectionStringBuilder
-        //{
-        //    DataSource = options.Endpoint,
-        //    InitialCatalog = options.DatabaseName
-        //};
-        //Console.WriteLine($"Azure SQL Database ConnectionString: {sqlConnectionStringBuilder.ConnectionString}");
+        var sqlConnectionStringBuilder = new SqlConnectionStringBuilder
+        {
+            DataSource = options.Endpoint,
+            InitialCatalog = options.DatabaseName
+        };
+        Console.WriteLine($"Azure SQL Database ConnectionString: {sqlConnectionStringBuilder.ConnectionString}");
 
-        //var defaultAzureCredential = new DefaultAzureCredential(new DefaultAzureCredentialOptions() { TenantId = options.TenantId });
-        //var tokenResult = await defaultAzureCredential.GetTokenAsync(new TokenRequestContext(scopes: ["https://database.windows.net/.default"]));
+        var defaultAzureCredential = new DefaultAzureCredential(new DefaultAzureCredentialOptions() { TenantId = options.TenantId });
+        var tokenResult = await defaultAzureCredential.GetTokenAsync(new TokenRequestContext(scopes: ["https://database.windows.net/.default"]));
 
-        using var sqlConnection = new SqlConnection(options.ConnectionString);
-        //sqlConnection.AccessToken = tokenResult.Token;
+        using var sqlConnection = new SqlConnection(sqlConnectionStringBuilder.ConnectionString);
+        sqlConnection.AccessToken = tokenResult.Token;
 
         try
         {
