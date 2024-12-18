@@ -4,7 +4,7 @@ template: |
         ---
         Based on the above conversation, and the below metadata of the survey the conversation is about, please provide a comma-delimited list of 3 suggested questions that could be asked about the survey data.
         ---
-        {{survey_metadata}}
+        {{$survey_metadata}}
 template_format: semantic-kernel
 description: A function generates a short summary name for the chat session.
 input_variables:

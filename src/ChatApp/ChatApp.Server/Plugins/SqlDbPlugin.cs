@@ -55,7 +55,7 @@ public class SqlDbPlugin
             with values for the SurveyQuestion table as follows
             {questionMetadata}
             generate a syntactically correct SQL Server query in Transact-SQL dialect to answer the user question. Only use tables (except the Survey table) and columns form schema description. 
-            Pick the right question based on SurveyQuestion table's metadata. Use only Id and Description columns for filtering SurveyQuestion table. Only only numbers for SQL aggregate functions.
+            Pick the right question based on SurveyQuestion table's metadata. Only use Description value from SurveyQuestion metadata to identify matching Question column, don't use it in actual SQL query. Use only Id and Question columns for actual filtering SurveyQuestion table in SQL query. Only numbers for SQL aggregate functions.
             The SurveyResponse table has one to many relationship to SurveyQuestionAnswer where SurveyResponses represent individual responses to a given survey with the answers to the SurveyQuestions being records in the SurveyQuestionAnswer table.
             Only provide the SQL query. Do not encapsulate it in markdown.
             """;
@@ -73,12 +73,12 @@ public class SqlDbPlugin
     [Description("Execute a query against the SQL Database.")]
     [return: Description("The result of the query")]
     //public async Task<List<dynamic>> ExecuteSqlQueryAsync([Description("The query to run")] string query)
-    public async Task<string> ExecuteSqlQueryAsync([Description("The query to run")] string query)
+    public async Task<List<dynamic>> ExecuteSqlQueryAsync([Description("The query to run")] string query)
     {
         // reason for abstraction is for improved
         // dependency injection and lifetime of sql connection pooling
-        //return await _surveyService.ExecuteSqlQueryAsync(query);
+        return await _surveyService.ExecuteSqlQueryAsync(query);
 
-        return query;
+        //return query;
     }
 }

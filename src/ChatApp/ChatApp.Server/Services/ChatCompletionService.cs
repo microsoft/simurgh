@@ -35,7 +35,7 @@ public class ChatCompletionService
         _promptSettings = new OpenAIPromptExecutionSettings
         {
             MaxTokens = 1024,
-            Temperature = 0.5,
+            Temperature = 0.3,
             StopSequences = [],
             ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions
         };
