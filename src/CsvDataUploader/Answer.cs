@@ -16,4 +16,5 @@
     public Guid QuestionId { get; set; } = Guid.NewGuid();
     public string? TextAnswer { get; set; }
     public decimal? NumericAnswer { get; set; }
+    public string? SentimentAnalysisJson { get; set; }
 }
