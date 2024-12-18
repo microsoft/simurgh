@@ -180,6 +180,17 @@ module openAi 'core/ai/cognitiveservices.bicep' = {
   }
 }
 
+module languageService 'core/ai/languageservice.bicep' = {
+  name: 'language-service'
+  scope: resourceGroup
+  params: {
+    languageServiceName: '${abbrs.cognitiveServicesTextAnalytics}${resourceToken}'
+    location: location
+    skuName: 'S'
+    tags: tags
+  }
+}
+
 // The SQL chat history database
 module sql 'core/database/sqldb/sqldb-server.bicep' = {
   name: 'sql'
