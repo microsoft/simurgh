@@ -33,6 +33,7 @@ import {
     ExecResults,
     getSurveyQuestions,
     SurveyQuestion,
+    getSuggestedQuestions,
 } from "../../api";
 import { Answer } from "../../components/Answer";
 import { QuestionInput } from "../../components/QuestionInput";
@@ -46,11 +47,13 @@ const enum messageStatus {
     Done = 'Done'
 }
 
-const defaultSuggestedQueries = [
-    "Suggested Question 1",
-    "Suggested Question 2",
-    "Suggested Question 3",
-];
+const copyTextToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(function () {
+        console.log('Text copied to clipboard successfully!');
+    }).catch(function (err) {
+        console.error('Could not copy text: ', err);
+    });
+}
 
 const Chat = () => {
     let { surveyId } = useParams();
@@ -76,6 +79,23 @@ const Chat = () => {
         if (surveyId)
             fetchSurveyQuestions(surveyId);
     }, []);
+    useEffect(() => {
+        const fetchSuggestedQuestions = async (surveyId: string) => {
+            try {
+                const response = await getSuggestedQuestions(surveyId);
+                setSuggestedQueries(response);
+                setError(null);
+            } catch (err: any) {
+                setError(err?.message);
+                setSuggestedQueries([]);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        if (surveyId)
+            fetchSuggestedQuestions(surveyId);
+    }, []);
 
     const appStateContext = useContext(AppStateContext)
     const ui = appStateContext?.state.frontendSettings?.ui
@@ -95,7 +115,7 @@ const Chat = () => {
     const [hideErrorDialog, { toggle: toggleErrorDialog }] = useBoolean(true)
     const [errorMsg, setErrorMsg] = useState<ErrorMessage | null>()
     const [propmt, setPrompt] = useState<string>()
-    const [suggestedQueries, setSuggestedQueries] = useState<string[]>(defaultSuggestedQueries)
+    const [suggestedQueries, setSuggestedQueries] = useState<string[]>([])
 
     const errorDialogContentProps = {
         type: DialogType.close,
@@ -730,6 +750,10 @@ const Chat = () => {
         { key: 'description', name: 'Description', fieldName: 'description', minWidth: 400, maxWidth: 1000, isResizable: true }
     ];
 
+    const copyToClipboard = (e: React.MouseEvent<HTMLDivElement | HTMLAnchorElement | HTMLSpanElement | HTMLButtonElement | BaseButton | Button>, query: string): void => {
+        navigator.clipboard.writeText(query);
+    };
+
     return (
         <div className={styles.container} role="main">
             {showAuthMessage ? (
@@ -829,8 +853,8 @@ const Chat = () => {
                         <Stack enableScopedSelectors className={styles.chatWrapper} horizontalAlign="center">
                             <Stack enableScopedSelectors>
                                 <Stack enableScopedSelectors horizontal>
-                                        {suggestedQueries?.map((query, index) => (
-                                            <DefaultButton key={index} className={styles.suggestedQuestion}> 
+                                    {suggestedQueries?.map((query, index) => (
+                                        <DefaultButton key={index} className={styles.suggestedQuestion} onClick={e => copyToClipboard(e, query)}>
                                             {query}
                                         </DefaultButton>
                                     ))}

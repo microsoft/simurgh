@@ -392,8 +392,8 @@ a {
     margin: 4px;
     padding: 8px 4px;
     border-radius: 2px;
+    position: relative; /* Add this line */
 }
-
 
 .questionList {
     flex: 0 0 25%;
