@@ -380,3 +380,16 @@ export const getSurveyQuestions = async (surveyId: string): Promise<SurveyQuesti
 
     return response
 }
+
+export const getSuggestedQuestions = async (surveyId: string): Promise<string[]> => {
+    const response = await fetch(`/suggest-questions/${surveyId}`, {
+        method: 'GET'
+    }).then(res => {
+        return res.json()
+    }).catch(_err => {
+        console.error('There was an issue fetching survey questions.')
+        return new Response()
+    });
+
+    return response
+};

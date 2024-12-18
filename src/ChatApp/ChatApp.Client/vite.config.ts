@@ -43,6 +43,10 @@ export default defineConfig({
     },
     server: {
         proxy: {
+            '^/suggest-questions': {
+                target,
+                secure: false
+            },
             '^/surveys': {
                 target,
                 secure: false

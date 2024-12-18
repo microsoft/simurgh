@@ -43,6 +43,16 @@ public static partial class Endpoints
         }).WithName("GetSurveyQuestions")
         .WithOpenApi();
 
+        app.MapGet("/suggest-questions/{surveyId}", async ([FromServices] ChatCompletionService chat, [FromRoute] string surveyId) =>
+        {
+            if (!Guid.TryParse(surveyId, out var guid))
+                return Results.BadRequest("Invalid surveyId");
+
+            var suggestions = await chat.GenerateSuggestedQuestionsAsync(guid);
+
+            return Results.Ok(suggestions);
+        }).WithName("SuggestQuestions");
+
         return app;
     }
 }
