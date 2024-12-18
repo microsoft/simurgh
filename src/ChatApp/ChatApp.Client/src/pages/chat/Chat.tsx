@@ -772,9 +772,6 @@ const Chat = () => {
                             className={styles.surveyQuestionGrid} /></div>)}
                         {!messages || messages.length < 1 ? (
                             <Stack className={styles.chatEmptyState}>
-                                <img src={ui?.chat_logo ? ui.chat_logo : Contoso} className={styles.chatIcon} aria-hidden="true" />
-                                <h1 className={styles.chatEmptyStateTitle}>{ui?.chat_title}</h1>
-                                <h2 className={styles.chatEmptyStateSubtitle}>{ui?.chat_description}</h2>
                             </Stack>
                         ) : (
                             <div className={styles.chatMessageStream} style={{ marginBottom: isLoading ? '40px' : '0px' }} role="log">
@@ -832,29 +829,15 @@ const Chat = () => {
                         <Stack enableScopedSelectors className={styles.chatWrapper} horizontalAlign="center">
                             <Stack enableScopedSelectors>
                                 <Stack enableScopedSelectors horizontal>
-                                    {suggestedQueries?.map((query, index) => (
-                                        <DefaultButton key={index}>
+                                        {suggestedQueries?.map((query, index) => (
+                                            <DefaultButton key={index} className={styles.suggestedQuestion}> 
                                             {query}
                                         </DefaultButton>
                                     ))}
                                 </Stack>
                             </Stack>
                             <Stack horizontal className={styles.chatInput}>
-                                {isLoading && messages.length > 0 && (
-                                    <Stack
-                                        horizontal
-                                        className={styles.stopGeneratingContainer}
-                                        role="button"
-                                        aria-label="Stop generating"
-                                        tabIndex={0}
-                                        onClick={stopGenerating}
-                                        onKeyDown={e => (e.key === 'Enter' || e.key === ' ' ? stopGenerating() : null)}>
-                                        <SquareRegular className={styles.stopGeneratingIcon} aria-hidden="true" />
-                                        <span className={styles.stopGeneratingText} aria-hidden="true">
-                                            Stop generating
-                                        </span>
-                                    </Stack>
-                                )}
+
 
                                 <Stack>
                                     {appStateContext?.state.isHistoryEnabled && (

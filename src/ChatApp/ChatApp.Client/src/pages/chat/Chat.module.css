@@ -9,7 +9,6 @@
     flex: 1;
     display: flex;
     margin-top: 0px;
-    margin-bottom: 20px;
     margin-left: 20px;
     margin-right: 20px;
     gap: 5px;
@@ -24,7 +23,7 @@
     box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.14), 0px 0px 2px rgba(0, 0, 0, 0.12);
     border-radius: 8px;
     overflow-y: auto;
-    max-height: calc(100vh - 100px);
+    max-height: calc(100vh - 70px);
 }
 
 .chatEmptyState {
@@ -59,20 +58,15 @@
     color: #616161;
 }
 
-.chatIcon {
-    height: 62px;
-    width: auto;
-}
-
 .chatMessageStream {
     flex-grow: 1;
+    display: flex;
+    flex-direction: column;
     max-width: 1028px;
     width: 100%;
     overflow-y: auto;
     padding-left: 24px;
     padding-right: 24px;
-    display: flex;
-    flex-direction: column;
     margin-top: 24px;
 }
 
@@ -132,15 +126,17 @@
 
 .chatWrapper {
     position: sticky;
-    flex: 0 0 100px;
+    flex: 0 0 25%;
     padding-top: 12px;
-    padding-bottom: 24px;
     padding-left: 24px;
     padding-right: 24px;
-    width: calc(100% - 100px);
-    max-width: 1028px;
-    margin-bottom: 50px;
+    /*    width: calc(100% - 100px);*/
+    /*    max-width: 1028px;*/
+    width: 100%;
     margin-top: 8px;
+    border-top-color: rgb(237,235,233);
+    border-top-style: solid;
+    border-top-width: .66666px;
 }
 
 .chatInput {
@@ -392,9 +388,15 @@ a {
     }
 }
 
+.suggestedQuestion {
+    margin: 4px;
+    padding: 8px 4px;
+    border-radius: 2px;
+}
+
 
 .questionList {
-    flex: 1;
+    flex: 0 0 25%;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -402,7 +404,7 @@ a {
     border-bottom-style: solid;
     border-bottom-width: .66666px;
     width: 100%;
-    height: 30%;
+    height: 40%;
     /* Hide the scrollbar by default */
     overflow: hidden;
 }
