@@ -1,5 +1,6 @@
 ﻿using ChatApp.Server.Models;
 using Microsoft.Data.SqlClient;
+using System.Data;
 using System.Text;
 
 namespace ChatApp.Server.Services;
@@ -90,10 +91,23 @@ public class SurveyService
         if (!reader.HasRows)
             return results;
 
+        //getting name of columns from reulting data set in case if there is more then one column
+        var columnNames = new List<string>();
+        DataTable schemaTable = reader.GetSchemaTable();
+
+        foreach (DataRow row in schemaTable.Rows)
+        {
+            foreach (DataColumn column in schemaTable.Columns)
+            {
+                if(column.ColumnName == "ColumnName")
+                    columnNames.Add(row[column.ColumnName].ToString());
+            }
+        }
+
         // consider yield?
         while (reader.Read())
         {
-            results.Add(reader);
+            results.Add(reader[0].ToString());
         }
 
         return results;
@@ -116,7 +130,7 @@ public class SurveyService
 
         while (reader.Read())
         {
-            dataMetadataString.AppendLine($"- {reader["Id"]}|\"{reader["Question"]}\"|{reader["Description"]}");
+            dataMetadataString.AppendLine($"- {reader["Id"]}|\"{reader["Question"]}\"|\"{reader["Description"]}\"");
         }
 
         return dataMetadataString.ToString();
