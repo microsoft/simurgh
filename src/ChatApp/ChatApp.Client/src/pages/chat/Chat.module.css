@@ -395,6 +395,11 @@ a {
     position: relative; /* Add this line */
 }
 
+.chatIcon {
+    height: 62px;
+    width: auto;
+}
+
 .questionList {
     flex: 0 0 25%;
     display: flex;

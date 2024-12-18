@@ -796,6 +796,7 @@ const Chat = () => {
                             className={styles.surveyQuestionGrid} /></div>)}
                         {!messages || messages.length < 1 ? (
                             <Stack className={styles.chatEmptyState}>
+                                <img src={ui?.chat_logo ? ui.chat_logo : Contoso} className={styles.chatIcon} aria-hidden="true" />
                             </Stack>
                         ) : (
                             <div className={styles.chatMessageStream} style={{ marginBottom: isLoading ? '40px' : '0px' }} role="log">
