@@ -110,9 +110,11 @@ public class ChatCompletionService
         return completion;
     }
 
-    public async Task<List<string>> GenerateSuggestedQuestionsAsync(Guid surveyId, List<Message> messages)
+    public async Task<List<string>> GenerateSuggestedQuestionsAsync(Guid surveyId, List<Message>? messages = null)
     {
         var surveyMetadata = await _surveyService.GetSurveyMetadataAsync(surveyId);
+
+        messages ??= [new("")];
 
         string conversationText = string.Join(" ", messages.Select(m => m.Role + " " + m.Content));
 

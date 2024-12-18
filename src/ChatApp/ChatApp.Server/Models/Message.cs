@@ -5,6 +5,13 @@ namespace ChatApp.Server.Models;
 
 public class Message
 {
+    public Message() { }
+    public Message(string message)
+    {
+        Content = message;
+        Date = DateTime.UtcNow;
+        Role = "User";
+    }
     public string Id { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
     public string Content { get; set; } = string.Empty;

@@ -2,7 +2,8 @@ name: SuggestQuestions
 template: |
         {{$history}}
         ---
-        Based on the above conversation, and the below metadata of the survey the conversation is about, please provide a comma-delimited list of 3 suggested questions that could be asked about the survey data.
+        Based on the above conversation, and the below metadata of the survey the conversation is about, please provide a newline-delimited list of 3 suggested questions that could be asked about the survey data.
+        Try to keep questions simple and atomic. Restrict questions to the data in the survey.
         ---
         {{$survey_metadata}}
 template_format: semantic-kernel
