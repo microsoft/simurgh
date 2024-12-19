@@ -1,4 +1,6 @@
-﻿public class Answer
+﻿using CsvDataUploader.Models;
+
+public class Answer
 {
     public Answer() { }
     public Answer(Guid surveyId, Guid surveyResponseId, Guid questionId, string? textAnswer = null, decimal? numericAnswer = null)
@@ -17,4 +19,8 @@
     public string? TextAnswer { get; set; }
     public decimal? NumericAnswer { get; set; }
     public string? SentimentAnalysisJson { get; set; }
+    public double? PositiveSentimentConfidenceScore { get; set; }
+    public double? NeutralSentimentConfidenceScore { get; set; }
+    public double? NegativeSentimentConfidenceScore { get; set; }
+    public List<AnswerVector> Vectors { get; set; } = [];
 }

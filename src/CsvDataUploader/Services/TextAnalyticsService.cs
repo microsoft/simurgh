@@ -3,7 +3,6 @@ using Azure.AI.TextAnalytics;
 using Azure.Core;
 using Azure.Identity;
 using CsvDataUploader.Options;
-using Newtonsoft.Json;
 
 namespace CsvDataUploader.Services;
 
@@ -58,10 +57,11 @@ internal class TextAnalyticsService
         }
     }
 
-    internal async Task<string> AnalyzeSentimentAsync(string text)
+    internal async Task<DocumentSentiment?> AnalyzeSentimentAsync(string text)
     {
+        // todo: handle quota...
         var response = await _client.AnalyzeSentimentAsync(text);
 
-        return JsonConvert.SerializeObject(response?.Value);
+        return response?.Value;
     }
 }
