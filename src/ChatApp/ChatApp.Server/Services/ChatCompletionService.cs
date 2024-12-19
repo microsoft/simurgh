@@ -60,10 +60,12 @@ public class ChatCompletionService
         messages = messages.Where(m => !string.IsNullOrWhiteSpace(m.Id)).ToArray();
 
         // todo: check out where this got removed in git history to see if anything else important was removed
-        foreach (var item in messages)
-        {
-            history.AddUserMessage(item.Content);
-        }
+        //foreach (var item in messages)
+        //{
+        //    history.AddUserMessage(item.Content);
+        //}
+
+        history.AddUserMessage(messages.LastOrDefault()?.Content);
 
         var response = await _kernel.GetRequiredService<IChatCompletionService>().GetChatMessageContentAsync(history, _promptSettings, _kernel);
 
