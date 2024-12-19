@@ -1,4 +1,7 @@
-﻿using Microsoft.Data.SqlClient;
+﻿using Azure.Core;
+using Azure.Identity;
+using CsvDataUploader.Models;
+using Microsoft.Data.SqlClient;
 using System.Data;
 
 namespace CsvDataUploader.Services;
@@ -6,14 +9,39 @@ namespace CsvDataUploader.Services;
 internal class AzureSqlService
 {
     private readonly string _connectionString;
-    internal AzureSqlService(string connectionString)
+    private readonly bool _useManagedIdentity = false;
+    private readonly string? _tenantId = null;
+
+    internal AzureSqlService(SqlConnectionStringBuilder connectionStringBuilder, string? tenantId = null)
     {
-        _connectionString = connectionString;
+        if (connectionStringBuilder.Authentication == SqlAuthenticationMethod.ActiveDirectoryManagedIdentity)
+        {
+            _tenantId = tenantId;
+            _useManagedIdentity = true;
+            // this is really goofy but managed identity doesn't work with SqlConnectionStringBuilder
+            // for local settings unless you set the token yourself using DefaultAzureCredential
+            // see GetAccessTokenAsync, but you cannot set the AccessToken property on the connection
+            // if the auth method has been set on the connection string, so we start by saying it is
+            // managed identity and then set it to not specified so we can set the token later
+            connectionStringBuilder.Authentication = SqlAuthenticationMethod.NotSpecified;
+        }
+
+        _connectionString = connectionStringBuilder.ConnectionString;
+    }
+
+    private async Task<string> GetAccessTokenAsync()
+    {
+        var defaultAzureCredential = string.IsNullOrWhiteSpace(_tenantId)
+            ? new DefaultAzureCredential()
+            : new DefaultAzureCredential(new DefaultAzureCredentialOptions() { TenantId = _tenantId });
+        var tokenResult = await defaultAzureCredential.GetTokenAsync(new TokenRequestContext(scopes: ["https://database.windows.net/.default"]));
+        return tokenResult.Token;
     }
 
     internal async Task<bool> TestConnectionAsync()
     {
         using var connection = new SqlConnection(_connectionString);
+        if (_useManagedIdentity) connection.AccessToken = await GetAccessTokenAsync();
         await connection.OpenAsync();
         return connection.State == ConnectionState.Open;
     }
@@ -31,6 +59,7 @@ internal class AzureSqlService
         }
 
         using var connection = new SqlConnection(_connectionString);
+        if (_useManagedIdentity) connection.AccessToken = await GetAccessTokenAsync();
         await connection.OpenAsync();
 
         var clearDatabaseCommand = new SqlCommand("DELETE FROM SurveyQuestionAnswer; DELETE FROM SurveyQuestion; DELETE FROM SurveyResponse; DELETE FROM Survey;", connection);
@@ -40,6 +69,7 @@ internal class AzureSqlService
     internal async Task<Guid> UploadSurveyAsync(string surveyName, string version = "1.0")
     {
         using var connection = new SqlConnection(_connectionString);
+        if (_useManagedIdentity) connection.AccessToken = await GetAccessTokenAsync();
         await connection.OpenAsync();
 
         var surveyId = Guid.NewGuid();
@@ -59,6 +89,7 @@ internal class AzureSqlService
     internal async Task UploadSurveyResponsesAsync(Guid surveyId, List<Guid> responseIds)
     {
         using var connection = new SqlConnection(_connectionString);
+        if (_useManagedIdentity) connection.AccessToken = await GetAccessTokenAsync();
         await connection.OpenAsync();
 
         var surveyResponseTable = new DataTable();
@@ -85,6 +116,7 @@ internal class AzureSqlService
     internal async Task UploadSurveyQuestionsAsync(Guid surveyId, List<Question> questions)
     {
         using var connection = new SqlConnection(_connectionString);
+        if (_useManagedIdentity) connection.AccessToken = await GetAccessTokenAsync();
         await connection.OpenAsync();
 
         var questionTable = new DataTable();
@@ -120,27 +152,35 @@ internal class AzureSqlService
     internal async Task UploadSurveyQuestionAnswersAsync(List<Answer> answers)
     {
         using var connection = new SqlConnection(_connectionString);
+        if (_useManagedIdentity) connection.AccessToken = await GetAccessTokenAsync();
         await connection.OpenAsync();
 
         var answerTable = new DataTable();
         answerTable.Columns.Add("Id", typeof(Guid));
         answerTable.Columns.Add("SurveyId", typeof(Guid));
-        answerTable.Columns.Add("QuestionId", typeof(Guid));
         answerTable.Columns.Add("SurveyResponseId", typeof(Guid));
+        answerTable.Columns.Add("SurveyQuestionId", typeof(Guid));
         answerTable.Columns.Add("TextAnswer", typeof(string));
         answerTable.Columns.Add("NumericAnswer", typeof(decimal));
         answerTable.Columns.Add("SentimentAnalysisJson", typeof(string));
-        
+        answerTable.Columns.Add("PositiveSentimentConfidenceScore", typeof(double));
+        answerTable.Columns.Add("NeutralSentimentConfidenceScore", typeof(double));
+        answerTable.Columns.Add("NegativeSentimentConfidenceScore", typeof(double));
+
         foreach (var answer in answers)
         {
             var row = answerTable.NewRow();
             row["Id"] = answer.Id;
             row["SurveyId"] = answer.SurveyId;
             row["SurveyResponseId"] = answer.SurveyResponseId;
-            row["QuestionId"] = answer.QuestionId;
+            row["SurveyQuestionId"] = answer.QuestionId;
             row["TextAnswer"] = answer.TextAnswer ?? (object)DBNull.Value;
             row["NumericAnswer"] = answer.NumericAnswer ?? (object)DBNull.Value;
             row["SentimentAnalysisJson"] = answer.SentimentAnalysisJson ?? (object)DBNull.Value;
+            row["PositiveSentimentConfidenceScore"] = answer.PositiveSentimentConfidenceScore ?? (object)DBNull.Value;
+            row["NeutralSentimentConfidenceScore"] = answer.NeutralSentimentConfidenceScore ?? (object)DBNull.Value;
+            row["NegativeSentimentConfidenceScore"] = answer.NegativeSentimentConfidenceScore ?? (object)DBNull.Value;
+
             answerTable.Rows.Add(row);
         }
 
@@ -149,12 +189,45 @@ internal class AzureSqlService
         answerBulkCopy.DestinationTableName = "SurveyQuestionAnswer";
         answerBulkCopy.ColumnMappings.Add("Id", "Id");
         answerBulkCopy.ColumnMappings.Add("SurveyId", "SurveyId");
-        answerBulkCopy.ColumnMappings.Add("QuestionId", "QuestionId");
         answerBulkCopy.ColumnMappings.Add("SurveyResponseId", "SurveyResponseId");
+        answerBulkCopy.ColumnMappings.Add("SurveyQuestionId", "SurveyQuestionId");
         answerBulkCopy.ColumnMappings.Add("TextAnswer", "TextAnswer");
         answerBulkCopy.ColumnMappings.Add("NumericAnswer", "NumericAnswer");
         answerBulkCopy.ColumnMappings.Add("SentimentAnalysisJson", "SentimentAnalysisJson");
+        answerBulkCopy.ColumnMappings.Add("PositiveSentimentConfidenceScore", "PositiveSentimentConfidenceScore");
+        answerBulkCopy.ColumnMappings.Add("NeutralSentimentConfidenceScore", "NeutralSentimentConfidenceScore");
+        answerBulkCopy.ColumnMappings.Add("NegativeSentimentConfidenceScore", "NegativeSentimentConfidenceScore");
 
         await answerBulkCopy.WriteToServerAsync(answerTable);
+    }
+
+    internal async Task UploadSurveyQuestionAnswerVectorsAsync(List<AnswerVector> answerVectors)
+    {
+        using var connection = new SqlConnection(_connectionString);
+        if (_useManagedIdentity) connection.AccessToken = await GetAccessTokenAsync();
+        await connection.OpenAsync();
+
+        var vectorTable = new DataTable();
+        // don't need a column for ID because I wised up and made it an identity(1,1)
+        vectorTable.Columns.Add("SurveyQuestionAnswerId", typeof(Guid));
+        vectorTable.Columns.Add("Vector", typeof(float));
+
+        foreach (var vector in answerVectors)
+        {
+            var row = vectorTable.NewRow();
+            row["SurveyQuestionAnswerId"] = vector.AnswerId;
+            row["Vector"] = vector.Vector;
+
+            vectorTable.Rows.Add(row);
+        }
+
+        using var vectorBulkCopy = new SqlBulkCopy(connection);
+        vectorBulkCopy.BulkCopyTimeout = 0; // no timeout..
+
+        vectorBulkCopy.DestinationTableName = "SurveyQuestionAnswerVector";
+        vectorBulkCopy.ColumnMappings.Add("SurveyQuestionAnswerId", "SurveyQuestionAnswerId");
+        vectorBulkCopy.ColumnMappings.Add("Vector", "Vector");
+
+        await vectorBulkCopy.WriteToServerAsync(vectorTable);
     }
 }

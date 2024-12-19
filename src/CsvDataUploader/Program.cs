@@ -1,11 +1,16 @@
-﻿using CsvDataUploader;
+﻿using Azure.Identity;
+using CsvDataUploader;
+using CsvDataUploader.Models;
 using CsvDataUploader.Options;
 using CsvDataUploader.Services;
 using CsvHelper;
 using CsvHelper.Configuration;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
+using Newtonsoft.Json;
 using System.Globalization;
+
+Console.ResetColor();
 
 var configuration = new ConfigurationBuilder()
     .SetBasePath(AppContext.BaseDirectory)
@@ -19,19 +24,15 @@ var csvOptions = new CsvOptions();
 configuration.GetSection(nameof(CsvOptions)).Bind(csvOptions);
 var textAnalyticsServiceOptions = new TextAnalyticsServiceOptions();
 configuration.GetSection(nameof(TextAnalyticsServiceOptions)).Bind(textAnalyticsServiceOptions);
+var vectorizationOptions = new VectorizationOptions();
+configuration.GetSection(nameof(VectorizationOptions)).Bind(vectorizationOptions);
 
 var timeStart = DateTime.UtcNow;
 Console.WriteLine($"Initialized at {timeStart}.");
 
+Console.WriteLine(Environment.NewLine);
 
-Console.WriteLine("Sql Server Endpoint: " + sqlOptions.Endpoint);
-Console.WriteLine("Sql Database Name: " + sqlOptions.DatabaseName);
-
-var sqlConnectionStringBuilder = new SqlConnectionStringBuilder
-{
-    DataSource = sqlOptions.Endpoint,
-    InitialCatalog = sqlOptions.DatabaseName
-};
+var sqlConnectionStringBuilder = new SqlConnectionStringBuilder();
 
 if (string.IsNullOrWhiteSpace(sqlOptions.ConnectionString))
 {
@@ -46,6 +47,7 @@ if (string.IsNullOrWhiteSpace(sqlOptions.ConnectionString))
     {
         Console.WriteLine("Using managed identity to authenticate to Azure SQL Database.");
         sqlConnectionStringBuilder.Authentication = SqlAuthenticationMethod.ActiveDirectoryManagedIdentity;
+        sqlConnectionStringBuilder.Encrypt = true;
     }
     else
     {
@@ -60,7 +62,7 @@ else
     sqlConnectionStringBuilder.ConnectionString = sqlOptions.ConnectionString;
 }
 
-var azureSqlHelper = new AzureSqlService(sqlConnectionStringBuilder.ConnectionString);
+var azureSqlHelper = new AzureSqlService(sqlConnectionStringBuilder, sqlOptions.TenantId);
 
 if (!await azureSqlHelper.TestConnectionAsync())
 {
@@ -111,6 +113,15 @@ if (!string.IsNullOrWhiteSpace(textAnalyticsServiceOptions.Endpoint) && headerDe
         Console.WriteLine($"{nameof(TextAnalyticsService)} successfully configured. Any columns marked as containing unstructured data will receive sentiment analysis.");
 }
 
+VectorizationService? vectorizationService = null;
+// todo: verify connection
+if (!string.IsNullOrWhiteSpace(vectorizationOptions.Endpoint) && !string.IsNullOrWhiteSpace(vectorizationOptions.Deployment))
+{
+    vectorizationService = new VectorizationService(vectorizationOptions);
+    Console.WriteLine("Azure Open AI service is configured. Will use it to vectorize text data.");
+}
+Console.WriteLine(Environment.NewLine);
+
 var rowsToUpload = csv.GetRecords<dynamic>()
     .OfType<IDictionary<string, object>>()
     .ToList() ?? [];
@@ -128,8 +139,12 @@ var surveyResponse = new List<Guid>();
 // use literal question text (the CSV column name) as the dictionary key
 var questions = new Dictionary<string, Question>();
 
+ConsoleUtility.WriteProgressBar(0);
+
 foreach (var row in rowsToUpload)
 {
+
+
     var surveyResponseId = Guid.NewGuid();
     surveyResponse.Add(surveyResponseId);
 
@@ -166,12 +181,39 @@ foreach (var row in rowsToUpload)
 
         // todo: determine whether a question requires a sentiment analysis...
         // for now we'll just check for the presence of the phrase "unstructured data" in the question description
-        if (question.Description.Contains("unstructured data", StringComparison.InvariantCultureIgnoreCase) && textAnalyticsService != null)
-            answer.SentimentAnalysisJson = await textAnalyticsService.AnalyzeSentimentAsync(stringVal);
+        if (question.Description.Contains("unstructured data", StringComparison.InvariantCultureIgnoreCase))
+        {
+            if (vectorizationService != null)
+            {
+                var vectors = await vectorizationService.GetEmbeddingAsync(stringVal);
 
+                answer.Vectors = vectors.HasValue ? vectors.Value.ToArray()
+                    .Select(v => new AnswerVector(answer.Id, v))
+                    .ToList() : [];
+            }
+
+
+            if (textAnalyticsService != null)
+            {
+                var analysis = await textAnalyticsService.AnalyzeSentimentAsync(stringVal);
+
+                if (analysis is not null)
+                {
+                    answer.SentimentAnalysisJson = JsonConvert.SerializeObject(analysis);
+                    answer.PositiveSentimentConfidenceScore = analysis.ConfidenceScores.Positive;
+                    answer.NeutralSentimentConfidenceScore = analysis.ConfidenceScores.Neutral;
+                    answer.NegativeSentimentConfidenceScore = analysis.ConfidenceScores.Negative;
+                }
+            }
+        }
+
+        ConsoleUtility.WriteProgressBar(rowsToUpload.IndexOf(row) * 100 / rowsToUpload.Count, true);
         question.Answers.Add(answer);
     }
 }
+ConsoleUtility.WriteProgressBar(100, true);
+
+Console.WriteLine(Environment.NewLine);
 Console.WriteLine($"Questions and answers processed... {questions.Count} questions and {surveyResponse.Count} responses");
 
 await azureSqlHelper.UploadSurveyResponsesAsync(surveyId, surveyResponse);
@@ -180,11 +222,20 @@ Console.WriteLine($"Survey responses inserted... {surveyResponse.Count}");
 await azureSqlHelper.UploadSurveyQuestionsAsync(surveyId, questions.Values.ToList());
 Console.WriteLine($"Questions inserted... {questions.Count}");
 
-
 var allAnswers = questions.Values.SelectMany(q => q.Answers);
 await azureSqlHelper.UploadSurveyQuestionAnswersAsync(allAnswers.ToList());
 Console.WriteLine($"Answers inserted... {allAnswers.Count()}");
 
+var allAnswerVectors = allAnswers.SelectMany(a => a.Vectors);
+await azureSqlHelper.UploadSurveyQuestionAnswerVectorsAsync(allAnswerVectors.ToList());
+Console.WriteLine($"Vectors inserted... {allAnswerVectors.Count()}");
+
+
+Console.WriteLine(Environment.NewLine);
 var timeEnd = DateTime.UtcNow;
 Console.WriteLine($"Finished at {timeEnd}");
 Console.WriteLine($"Total time taken: {timeEnd - timeStart}");
+Console.WriteLine("Press any key to exit...");
+Console.ReadKey();
+
+Console.ResetColor();
