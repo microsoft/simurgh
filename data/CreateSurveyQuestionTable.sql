@@ -13,7 +13,7 @@ create table
         Question nvarchar (max),
         DataType varchar(20) null,
         Description nvarchar (max) null,
-        constraint FK_Survey foreign key (SurveyId) references Survey (Id)
+        constraint FK_Survey_SurveyQuestion foreign key (SurveyId) references Survey (Id)
     );
 
 print 'Table SurveyQuestion created successfully';

@@ -12,12 +12,16 @@ create table
         Id uniqueidentifier primary key,
         SurveyId uniqueidentifier,
         SurveyResponseId uniqueidentifier,
-        QuestionId uniqueidentifier,
+        SurveyQuestionId uniqueidentifier,
         TextAnswer nvarchar (max) null,
         NumericAnswer numeric null,
         SentimentAnalysisJson nvarchar (max) null,
-        constraint FK_SurveyResponse_Survey foreign key (SurveyId) references Survey (Id),
-        constraint FK_SurveyResponse_Question foreign key (QuestionId) references SurveyQuestion (Id)
+        PositiveSentimentConfidenceScore numeric null,
+        NeutralSentimentConfidenceScore numeric null,
+        NegativeSentimentConfidenceScore numeric null,
+        constraint FK_Survey_SurveyQuestionAnswer foreign key (SurveyId) references Survey (Id),
+        constraint FK_SurveyResponse_SurveyQuestionAnswer foreign key (SurveyResponseId) references SurveyResponse (Id),
+        constraint FK_SurveyQuestion_SurveyQuestionAnswer foreign key (SurveyQuestionId) references SurveyQuestion (Id)
     );
 
 print 'Table SurveyQuestionAnswer created successfully';
