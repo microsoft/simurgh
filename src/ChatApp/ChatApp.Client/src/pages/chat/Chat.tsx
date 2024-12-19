@@ -79,23 +79,23 @@ const Chat = () => {
         if (surveyId)
             fetchSurveyQuestions(surveyId);
     }, []);
-    useEffect(() => {
-        const fetchSuggestedQuestions = async (surveyId: string) => {
-            try {
-                const response = await getSuggestedQuestions(surveyId);
-                setSuggestedQueries(response);
-                setError(null);
-            } catch (err: any) {
-                setError(err?.message);
-                setSuggestedQueries([]);
-            } finally {
-                setLoading(false);
-            }
-        };
+    //useEffect(() => {
+    //    const fetchSuggestedQuestions = async (surveyId: string) => {
+    //        try {
+    //            const response = await getSuggestedQuestions(surveyId);
+    //            setSuggestedQueries(response);
+    //            setError(null);
+    //        } catch (err: any) {
+    //            setError(err?.message);
+    //            setSuggestedQueries([]);
+    //        } finally {
+    //            setLoading(false);
+    //        }
+    //    };
 
-        if (surveyId)
-            fetchSuggestedQuestions(surveyId);
-    }, []);
+    //    if (surveyId)
+    //        fetchSuggestedQuestions(surveyId);
+    //}, []);
 
     const appStateContext = useContext(AppStateContext)
     const ui = appStateContext?.state.frontendSettings?.ui
@@ -115,7 +115,7 @@ const Chat = () => {
     const [hideErrorDialog, { toggle: toggleErrorDialog }] = useBoolean(true)
     const [errorMsg, setErrorMsg] = useState<ErrorMessage | null>()
     const [propmt, setPrompt] = useState<string>()
-    const [suggestedQueries, setSuggestedQueries] = useState<string[]>([])
+    //const [suggestedQueries, setSuggestedQueries] = useState<string[]>([])
 
     const errorDialogContentProps = {
         type: DialogType.close,
@@ -432,7 +432,7 @@ const Chat = () => {
                                     errorResponseMessage = NO_CONTENT_ERROR
                                     throw Error()
                                 }
-                                setSuggestedQueries(result.suggestedQueries);
+                                //setSuggestedQueries(result.suggestedQueries);
                                 if (result.choices?.length > 0) {
                                     //result.choices[0].messages.forEach(msg => {
                                     //  msg.id = result.id
@@ -853,13 +853,13 @@ const Chat = () => {
 
                         <Stack enableScopedSelectors className={styles.chatWrapper} horizontalAlign="center">
                             <Stack enableScopedSelectors>
-                                <Stack enableScopedSelectors horizontal>
-                                    {suggestedQueries?.map((query, index) => (
-                                        <DefaultButton key={index} className={styles.suggestedQuestion} onClick={e => copyToClipboard(e, query)}>
-                                            {query}
-                                        </DefaultButton>
-                                    ))}
-                                </Stack>
+                                {/*<Stack enableScopedSelectors horizontal>*/}
+                                {/*    {suggestedQueries?.map((query, index) => (*/}
+                                {/*        <DefaultButton key={index} className={styles.suggestedQuestion} onClick={e => copyToClipboard(e, query)}>*/}
+                                {/*            {query}*/}
+                                {/*        </DefaultButton>*/}
+                                {/*    ))}*/}
+                                {/*</Stack>*/}
                             </Stack>
                             <Stack horizontal className={styles.chatInput}>
 
