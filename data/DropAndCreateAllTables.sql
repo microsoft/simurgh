@@ -6,16 +6,6 @@ if exists (
     from
         sys.tables
     where
-        name = 'SurveyQuestionAnswerVector'
-) begin
-drop table SurveyQuestionAnswerVector end
-
-if exists (
-    select
-        *
-    from
-        sys.tables
-    where
         name = 'SurveyQuestionAnswer'
 ) begin
 drop table SurveyQuestionAnswer end
@@ -84,7 +74,7 @@ if not exists (
 create table
     SurveyResponse (
         Id uniqueidentifier primary key,
-        SurveyId uniqueidentifier
+        SurveyId uniqueidentifier,
         constraint FK_Survey_SurveyResponse foreign key (SurveyId) references Survey (Id)
     );
 
@@ -113,7 +103,6 @@ create table
 print 'Table SurveyQuestion created successfully';
 
 end else print 'Table SurveyQuestion already exists';
-
 if not exists (
     select
         *
@@ -132,9 +121,10 @@ create table
         TextAnswer nvarchar (max) null,
         NumericAnswer numeric null,
         SentimentAnalysisJson nvarchar (max) null,
-        PositiveSentimentConfidenceScore numeric null,
-        NeutralSentimentConfidenceScore numeric null,
-        NegativeSentimentConfidenceScore numeric null,
+        PositiveSentimentConfidenceScore float(53) null,
+        NeutralSentimentConfidenceScore float(53) null,
+        NegativeSentimentConfidenceScore float(53) null,
+        Embedding vector(1536) null,
         constraint FK_Survey_SurveyQuestionAnswer foreign key (SurveyId) references Survey (Id),
         constraint FK_SurveyResponse_SurveyQuestionAnswer foreign key (SurveyResponseId) references SurveyResponse (Id),
         constraint FK_SurveyQuestion_SurveyQuestionAnswer foreign key (SurveyQuestionId) references SurveyQuestion (Id)
@@ -143,26 +133,5 @@ create table
 print 'Table SurveyQuestionAnswer created successfully';
 
 end else print 'Table SurveyQuestionAnswer already exists';
-
-if not exists (
-    select
-        *
-    from
-        sys.tables
-    where
-        name = 'SurveyQuestionAnswerVector'
-) begin
--- create table
-create table
-    SurveyQuestionAnswerVector (
-        Id int primary key identity (1, 1),
-        SurveyQuestionAnswerId uniqueidentifier not null,
-        NegativeSentimentConfidenceScore float null,
-        constraint FK_SurveyQuestionAnswer_SurveyQuestionAnswerVector foreign key (SurveyQuestionAnswerId) references SurveyQuestionAnswer (Id)
-    );
-
-print 'Table SurveyQuestionAnswerVector created successfully';
-
-end else print 'Table SurveyQuestionAnswerVector already exists';
 
 print('All tables created successfully');
