@@ -1,4 +1,6 @@
-﻿using ChatApp.Server.Models;
+﻿#pragma warning disable SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+using ChatApp.Server.Models;
+using ChatApp.Server.Models.Options;
 using ChatApp.Server.Plugins;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -29,7 +31,7 @@ public class ChatCompletionService
      
      */
 
-    public ChatCompletionService(Kernel kernel, IConfiguration config, SurveyService surveyService)
+    public ChatCompletionService(Kernel kernel, IConfiguration config, SurveyService surveyService, AzureOpenAIOptions options)
     {
         _kernel = kernel;
         _surveyService = surveyService;
@@ -38,7 +40,7 @@ public class ChatCompletionService
             MaxTokens = 1024,
             Temperature = 0.3,
             StopSequences = [],
-            ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions
+            ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions,
         };
 
         _promptDirectory = Path.Combine(Directory.GetCurrentDirectory(), "Plugins");
@@ -46,6 +48,9 @@ public class ChatCompletionService
         //var _sqlYamlManifest = Path.Combine(_promptDirectory, "SqlQueryGenerationPlugin", "SqlQueryGeneration.yaml");
         //_kernel.CreateFunctionFromPromptYaml(_sqlYamlManifest);
 
+        // turn on / off vector search capability
+        if (options.IncludeVectorSearchPlugin)
+            _kernel.Plugins.AddFromType<VectorSearchPlugin>(serviceProvider: _kernel.Services);
 
         _kernel.Plugins.AddFromType<SqlDbPlugin>(serviceProvider: _kernel.Services);
     }
@@ -65,7 +70,7 @@ public class ChatCompletionService
         //    history.AddUserMessage(item.Content);
         //}
 
-        history.AddUserMessage(messages.LastOrDefault()?.Content);
+        history.AddUserMessage(messages.Last().Content);
 
         var response = await _kernel.GetRequiredService<IChatCompletionService>().GetChatMessageContentAsync(history, _promptSettings, _kernel);
 
@@ -138,9 +143,7 @@ public class ChatCompletionService
 
     public async Task<ReadOnlyMemory<float>> GetEmbeddingAsync(string userQuestion)
     {
-#pragma warning disable SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
         var embeddedQuery = await _kernel.GetRequiredService<ITextEmbeddingGenerationService>().GenerateEmbeddingAsync(userQuestion);
-#pragma warning restore SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
         return embeddedQuery;
     }
@@ -157,3 +160,4 @@ public class ChatCompletionService
         };
     }
 }
+#pragma warning restore SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.

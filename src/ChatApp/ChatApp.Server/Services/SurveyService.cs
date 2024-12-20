@@ -79,13 +79,10 @@ public class SurveyService
 
 
 
-    public async Task<List<SurveyQuestionAnswer>> VectorSearchAsync(Guid surveyId, string userQuery, ReadOnlyMemory<float> embeddedQuestion)
+    public async Task<List<VectorSearchResult>> VectorSearchAsync(ReadOnlyMemory<float> embeddedQuestion, VectorSearchOptions options)
     {
         using var connection = new SqlConnection(_connectionString);
         connection.Open();
-
-        // todo: add options for more where; consider also for more order by
-        var additionalWhere = "";
 
         var embeddingJson = JsonConvert.SerializeObject(embeddedQuestion.ToArray());
 
@@ -110,9 +107,9 @@ public class SurveyService
         //                    ftt.[RANK] AS rank,
         //                    sd.TextAnswer
         //                FROM
-        //                    dbo.SurveyQuestionAnswer AS sd
+        //                    dbo.VectorSearchResult AS sd
         //                    INNER JOIN
-        //                    FREETEXTTABLE(dbo.SurveyQuestionAnswer, *, @q) AS ftt ON sd.Id = ftt.[KEY]
+        //                    FREETEXTTABLE(dbo.VectorSearchResult, *, @q) AS ftt ON sd.Id = ftt.[KEY]
         //         ) AS t
         //            ORDER BY
         //         rank
@@ -131,7 +128,7 @@ public class SurveyService
         //                    VECTOR_DISTANCE('cosine', embedding, @e) AS distance,
         //                    TextAnswer
         //                FROM
-        //                    dbo.SurveyQuestionAnswer
+        //                    dbo.VectorSearchResult
         //                ORDER BY
         //                         distance
         //                 ) AS t
@@ -153,59 +150,68 @@ public class SurveyService
         //         score DESC
         //    """;
 
-        var vectorSearch = """
+        var vectorSearch = $"""
             DECLARE @k INT = @kParam;
             DECLARE @e VECTOR(1536) = CAST(@eParam AS VECTOR(1536));
 
             SELECT TOP(@k)
                 Id,
-                RANK() OVER (ORDER BY distance) AS rank,
-                TextAnswer
-            FROM
+                SurveyResponseId,
+                SurveyQuestionId,
+                TextAnswer,
+                PositiveSentimentConfidenceScore,
+                NeutralSentimentConfidenceScore,
+                NegativeSentimentConfidenceScore,
+                RANK() OVER (ORDER BY distance) AS rank
+            FROM 
             (
                 SELECT TOP(@k)
                     Id,
-                    VECTOR_DISTANCE('cosine', embedding, @e) AS distance,
-                    TextAnswer
+                    SurveyResponseId,
+                    SurveyQuestionId,
+                    TextAnswer,
+                    PositiveSentimentConfidenceScore,
+                    NeutralSentimentConfidenceScore,
+                    NegativeSentimentConfidenceScore,
+                    VECTOR_DISTANCE('cosine', embedding, @e) AS distance
                 FROM
                     dbo.SurveyQuestionAnswer
                 WHERE
+                    SurveyId = @surveyId and
                     TextAnswer is not null and
                     Embedding is not null
+                    {options.GetWhereClauseString()}
                 ORDER BY
                     distance
+                    {options.GetOrderByClauseString()}
             ) AS t
             ORDER BY
                 rank
             """;
-
+        //  VECTOR_DISTANCE('cosine', embedding, @e) AS distance,
         var command = new SqlCommand(vectorSearch, connection);
-        //var command = new SqlCommand(hybridSearch, connection);
         command.Parameters.AddWithValue("@eParam", embeddingJson);
-        command.Parameters.AddWithValue("@kParam", 5);
-        //command.Parameters.AddWithValue("@qParam", userQuery);
+        command.Parameters.AddWithValue("@kParam", options.TopK);
+        command.Parameters.AddWithValue("@surveyId", options.SurveyId);
 
         await using var reader = await command.ExecuteReaderAsync();
 
-        var answers = new List<SurveyQuestionAnswer>();
-
-        //KeywordRank = reader.GetFloat(4)
-        //SurveyResponseId = reader.GetGuid(2),
-        //SurveyQuestionId = reader.GetGuid(3),
-        //TextAnswer = reader.GetString(4),
-        //PositiveSentimentConfidenceScore = reader.GetDouble(5),
-        //NeutralSentimentConfidenceScore = reader.GetDouble(6),
-        //NegativeSentimentConfidenceScore = reader.GetDouble(7)
+        var answers = new List<VectorSearchResult>();
 
         while (await reader.ReadAsync())
         {
             var id = reader.GetSqlGuid(0).Value;
-            answers.Add(new SurveyQuestionAnswer()
+            answers.Add(new VectorSearchResult()
             {
                 Id = reader.GetGuid(0),
-                SemanticRank = reader.GetInt64(1),
-                TextAnswer = reader.GetString(2)
+                SurveyResponseId = reader.GetGuid(1),
+                SurveyQuestionId = reader.GetGuid(2),
+                TextAnswer = reader.GetString(3),
+                PositiveSentimentConfidenceScore = reader.GetDouble(4),
+                NeutralSentimentConfidenceScore = reader.GetDouble(5),
+                NegativeSentimentConfidenceScore = reader.GetDouble(6),
             });
+            // todo: how to handle null values more robustly
         }
 
         return answers;
