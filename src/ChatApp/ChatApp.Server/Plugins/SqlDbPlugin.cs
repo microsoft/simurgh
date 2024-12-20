@@ -52,7 +52,7 @@ public class SqlDbPlugin
         var systemPrompt = $"""
             Given the follow SQL schema containing survey data
             {sqlSchema}
-            with values for the SurveyQuestion table in format Id|Question|Description. Use Description as a hint to identify best one relevant question. Values for the SurveyQuestion table:
+            with values for the SurveyQuestion table in format Id|Question|Description. Use Description as a hint to identify best relevant question. Values for the SurveyQuestion table:
             {questionMetadata}
             generate a syntactically correct SQL Server query in Transact-SQL dialect to answer the user question: "{input}". Only use tables (except the Survey table) and columns form schema description.
             The SurveyResponse table has one to many relationship to SurveyQuestionAnswer where SurveyResponses represent individual responses to a given survey with the answers to the SurveyQuestions being records in the SurveyQuestionAnswer table.
