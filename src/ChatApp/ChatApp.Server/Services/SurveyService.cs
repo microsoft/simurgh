@@ -1,5 +1,6 @@
 ﻿using ChatApp.Server.Models;
 using Microsoft.Data.SqlClient;
+using Newtonsoft.Json;
 using System.Data;
 using System.Text;
 
@@ -74,6 +75,140 @@ public class SurveyService
         }
 
         return questions;
+    }
+
+
+
+    public async Task<List<SurveyQuestionAnswer>> VectorSearchAsync(Guid surveyId, string userQuery, ReadOnlyMemory<float> embeddedQuestion)
+    {
+        using var connection = new SqlConnection(_connectionString);
+        connection.Open();
+
+        // todo: add options for more where; consider also for more order by
+        var additionalWhere = "";
+
+        var embeddingJson = JsonConvert.SerializeObject(embeddedQuestion.ToArray());
+
+        //var hybridSearch = $"""
+        //    DECLARE @k INT = @kParam;
+        //    DECLARE @q NVARCHAR(4000) = @qParam;
+        //    DECLARE @e VECTOR(384) = CAST(@eParam AS VECTOR(384));
+
+        //    WITH
+        //        keyword_search
+        //        AS
+
+        //        (
+        //            SELECT TOP(@k)
+        //                Id,
+        //                RANK() OVER(ORDER BY rank) AS rank,
+        //                TextAnswer
+        //            FROM
+        //                (
+        //             SELECT TOP(@k)
+        //                    sd.Id,
+        //                    ftt.[RANK] AS rank,
+        //                    sd.TextAnswer
+        //                FROM
+        //                    dbo.SurveyQuestionAnswer AS sd
+        //                    INNER JOIN
+        //                    FREETEXTTABLE(dbo.SurveyQuestionAnswer, *, @q) AS ftt ON sd.Id = ftt.[KEY]
+        //         ) AS t
+        //            ORDER BY
+        //         rank
+        //        ),
+        //        semantic_search
+        //        AS
+        //        (
+        //            SELECT TOP(@k)
+        //                Id,
+        //                RANK() OVER (ORDER BY distance) AS rank,
+        //                TextAnswer
+        //            FROM
+        //                (
+        //                     SELECT TOP(@k)
+        //                    Id,
+        //                    VECTOR_DISTANCE('cosine', embedding, @e) AS distance,
+        //                    TextAnswer
+        //                FROM
+        //                    dbo.SurveyQuestionAnswer
+        //                ORDER BY
+        //                         distance
+        //                 ) AS t
+        //            ORDER BY
+        //                 rank
+        //        )
+        //    SELECT TOP(@k)
+        //        COALESCE(ss.Id, ks.Id) AS Id,
+        //        COALESCE(1.0 / (@k + ss.rank), 0.0) +
+        //         COALESCE(1.0 / (@k + ks.rank), 0.0) AS score, --Reciprocal Rank Fusion(RRF)
+        //        COALESCE(ss.TextAnswer, ks.TextAnswer) AS TextAnswer,
+        //        ss.rank AS SemanticRank,
+        //        ks.rank AS keyword_rank
+        //    FROM
+        //        semantic_search ss
+        //        FULL OUTER JOIN
+        //        keyword_search ks ON ss.Id = ks.Id
+        //    ORDER BY
+        //         score DESC
+        //    """;
+
+        var vectorSearch = """
+            DECLARE @k INT = @kParam;
+            DECLARE @e VECTOR(1536) = CAST(@eParam AS VECTOR(1536));
+
+            SELECT TOP(@k)
+                Id,
+                RANK() OVER (ORDER BY distance) AS rank,
+                TextAnswer
+            FROM
+            (
+                SELECT TOP(@k)
+                    Id,
+                    VECTOR_DISTANCE('cosine', embedding, @e) AS distance,
+                    TextAnswer
+                FROM
+                    dbo.SurveyQuestionAnswer
+                WHERE
+                    TextAnswer is not null and
+                    Embedding is not null
+                ORDER BY
+                    distance
+            ) AS t
+            ORDER BY
+                rank
+            """;
+
+        var command = new SqlCommand(vectorSearch, connection);
+        //var command = new SqlCommand(hybridSearch, connection);
+        command.Parameters.AddWithValue("@eParam", embeddingJson);
+        command.Parameters.AddWithValue("@kParam", 5);
+        //command.Parameters.AddWithValue("@qParam", userQuery);
+
+        await using var reader = await command.ExecuteReaderAsync();
+
+        var answers = new List<SurveyQuestionAnswer>();
+
+        //KeywordRank = reader.GetFloat(4)
+        //SurveyResponseId = reader.GetGuid(2),
+        //SurveyQuestionId = reader.GetGuid(3),
+        //TextAnswer = reader.GetString(4),
+        //PositiveSentimentConfidenceScore = reader.GetDouble(5),
+        //NeutralSentimentConfidenceScore = reader.GetDouble(6),
+        //NegativeSentimentConfidenceScore = reader.GetDouble(7)
+
+        while (await reader.ReadAsync())
+        {
+            var id = reader.GetSqlGuid(0).Value;
+            answers.Add(new SurveyQuestionAnswer()
+            {
+                Id = reader.GetGuid(0),
+                SemanticRank = reader.GetInt64(1),
+                TextAnswer = reader.GetString(2)
+            });
+        }
+
+        return answers;
     }
 
 
@@ -203,8 +338,4 @@ public class SurveyService
 
         return tableSchemasString.ToString();
     }
-
-
-
-
 }
