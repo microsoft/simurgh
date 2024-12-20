@@ -2,6 +2,7 @@
 using ChatApp.Server.Models;
 using ChatApp.Server.Models.Options;
 using ChatApp.Server.Plugins;
+using Microsoft.Extensions.Options;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
@@ -31,7 +32,7 @@ public class ChatCompletionService
      
      */
 
-    public ChatCompletionService(Kernel kernel, IConfiguration config, SurveyService surveyService, AzureOpenAIOptions options)
+    public ChatCompletionService(Kernel kernel, IConfiguration config, SurveyService surveyService, IOptions<AzureOpenAIOptions> options)
     {
         _kernel = kernel;
         _surveyService = surveyService;
@@ -49,7 +50,7 @@ public class ChatCompletionService
         //_kernel.CreateFunctionFromPromptYaml(_sqlYamlManifest);
 
         // turn on / off vector search capability
-        if (options.IncludeVectorSearchPlugin)
+        if (options?.Value?.IncludeVectorSearchPlugin ?? false)
             _kernel.Plugins.AddFromType<VectorSearchPlugin>(serviceProvider: _kernel.Services);
 
         _kernel.Plugins.AddFromType<SqlDbPlugin>(serviceProvider: _kernel.Services);
