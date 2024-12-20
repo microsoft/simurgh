@@ -99,15 +99,23 @@ public class SurveyService
         {
             foreach (DataColumn column in schemaTable.Columns)
             {
-                if(column.ColumnName == "ColumnName")
-                    columnNames.Add(row[column.ColumnName].ToString());
+                if (column.ColumnName != "ColumnName")
+                    continue;
+
+                var val = row[column.ColumnName].ToString();
+
+                if (val != null)
+                    columnNames.Add(val);
             }
         }
 
         // consider yield?
         while (reader.Read())
         {
-            results.Add(reader[0].ToString());
+            var val = reader[0].ToString();
+
+            if (val != null)
+                results.Add(val);
         }
 
         return results;
