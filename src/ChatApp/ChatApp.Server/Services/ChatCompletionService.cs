@@ -3,6 +3,7 @@ using ChatApp.Server.Plugins;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
+using Microsoft.SemanticKernel.Embeddings;
 
 namespace ChatApp.Server.Services;
 
@@ -47,7 +48,6 @@ public class ChatCompletionService
 
 
         _kernel.Plugins.AddFromType<SqlDbPlugin>(serviceProvider: _kernel.Services);
-        _kernel.Plugins.AddFromType<AggregatesPlugin>(serviceProvider: _kernel.Services);
     }
 
     public async Task<Message[]> CompleteChatAsync(Guid surveyId, Message[] messages)
