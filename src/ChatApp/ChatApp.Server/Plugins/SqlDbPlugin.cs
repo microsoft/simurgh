@@ -52,12 +52,12 @@ public class SqlDbPlugin
         var systemPrompt = $"""
             Given the follow SQL schema containing survey data
             {sqlSchema}
-            with values for the SurveyQuestion table as follows
+            with values for the SurveyQuestion table in format Id|Question|Description. Use Description as a hint to identify best relevant question. Values for the SurveyQuestion table:
             {questionMetadata}
-            generate a syntactically correct SQL Server query in Transact-SQL dialect to answer the user question. Only use tables (except the Survey table) and columns form schema description. 
-            Pick the right question based on SurveyQuestion table's metadata. Only use Description value from SurveyQuestion metadata to identify matching Question column, don't use it in actual SQL query. Use only Id and Question columns for actual filtering SurveyQuestion table in SQL query. Only numbers for SQL aggregate functions.
+            generate a syntactically correct SQL Server query in Transact-SQL dialect to answer the user question: "{input}". Only use tables (except the Survey table) and columns form schema description.
             The SurveyResponse table has one to many relationship to SurveyQuestionAnswer where SurveyResponses represent individual responses to a given survey with the answers to the SurveyQuestions being records in the SurveyQuestionAnswer table.
-            Only provide the SQL query. Do not encapsulate it in markdown.
+            Question "Name" is for actual account name. Use "NPS Score" question a score calculation. 
+            Use parameterized queries to hadle Question values with special characters, like quotes. Only provide the SQL query. Do not encapsulate it in markdown.
             """;
 
         var history = new ChatHistory(systemPrompt);
