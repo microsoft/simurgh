@@ -1,5 +1,4 @@
-﻿using Azure.Identity;
-using CsvDataUploader;
+﻿using CsvDataUploader;
 using CsvDataUploader.Models;
 using CsvDataUploader.Options;
 using CsvDataUploader.Services;
@@ -141,10 +140,9 @@ var questions = new Dictionary<string, Question>();
 
 ConsoleUtility.WriteProgressBar(0);
 
+var lastPercent = 0;
 foreach (var row in rowsToUpload)
 {
-
-
     var surveyResponseId = Guid.NewGuid();
     surveyResponse.Add(surveyResponseId);
 
@@ -184,14 +182,7 @@ foreach (var row in rowsToUpload)
         if (question.Description.Contains("unstructured data", StringComparison.InvariantCultureIgnoreCase))
         {
             if (vectorizationService != null)
-            {
-                var vectors = await vectorizationService.GetEmbeddingAsync(stringVal);
-
-                answer.Vectors = vectors.HasValue ? vectors.Value.ToArray()
-                    .Select(v => new AnswerVector(answer.Id, v))
-                    .ToList() : [];
-            }
-
+                answer.Embedding = await vectorizationService.GetEmbeddingAsync(stringVal);
 
             if (textAnalyticsService != null)
             {
@@ -207,7 +198,10 @@ foreach (var row in rowsToUpload)
             }
         }
 
-        ConsoleUtility.WriteProgressBar(rowsToUpload.IndexOf(row) * 100 / rowsToUpload.Count, true);
+        var currentPercent = rowsToUpload.IndexOf(row) * 100 / rowsToUpload.Count;
+        if (lastPercent != currentPercent)
+            ConsoleUtility.WriteProgressBar(currentPercent, true);
+        lastPercent = currentPercent;
         question.Answers.Add(answer);
     }
 }
@@ -225,11 +219,6 @@ Console.WriteLine($"Questions inserted... {questions.Count}");
 var allAnswers = questions.Values.SelectMany(q => q.Answers);
 await azureSqlHelper.UploadSurveyQuestionAnswersAsync(allAnswers.ToList());
 Console.WriteLine($"Answers inserted... {allAnswers.Count()}");
-
-var allAnswerVectors = allAnswers.SelectMany(a => a.Vectors);
-await azureSqlHelper.UploadSurveyQuestionAnswerVectorsAsync(allAnswerVectors.ToList());
-Console.WriteLine($"Vectors inserted... {allAnswerVectors.Count()}");
-
 
 Console.WriteLine(Environment.NewLine);
 var timeEnd = DateTime.UtcNow;
