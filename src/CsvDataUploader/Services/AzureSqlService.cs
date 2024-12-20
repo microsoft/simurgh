@@ -2,6 +2,7 @@
 using Azure.Identity;
 using CsvDataUploader.Models;
 using Microsoft.Data.SqlClient;
+using Newtonsoft.Json;
 using System.Data;
 
 namespace CsvDataUploader.Services;
@@ -166,6 +167,7 @@ internal class AzureSqlService
         answerTable.Columns.Add("PositiveSentimentConfidenceScore", typeof(double));
         answerTable.Columns.Add("NeutralSentimentConfidenceScore", typeof(double));
         answerTable.Columns.Add("NegativeSentimentConfidenceScore", typeof(double));
+        answerTable.Columns.Add("Embedding", typeof(string));
 
         foreach (var answer in answers)
         {
@@ -173,13 +175,16 @@ internal class AzureSqlService
             row["Id"] = answer.Id;
             row["SurveyId"] = answer.SurveyId;
             row["SurveyResponseId"] = answer.SurveyResponseId;
-            row["SurveyQuestionId"] = answer.QuestionId;
+            row["SurveyQuestionId"] = answer.SurveyQuestionId;
             row["TextAnswer"] = answer.TextAnswer ?? (object)DBNull.Value;
             row["NumericAnswer"] = answer.NumericAnswer ?? (object)DBNull.Value;
             row["SentimentAnalysisJson"] = answer.SentimentAnalysisJson ?? (object)DBNull.Value;
             row["PositiveSentimentConfidenceScore"] = answer.PositiveSentimentConfidenceScore ?? (object)DBNull.Value;
             row["NeutralSentimentConfidenceScore"] = answer.NeutralSentimentConfidenceScore ?? (object)DBNull.Value;
             row["NegativeSentimentConfidenceScore"] = answer.NegativeSentimentConfidenceScore ?? (object)DBNull.Value;
+            row["Embedding"] = answer.Embedding.HasValue
+                ? JsonConvert.SerializeObject(answer.Embedding.Value.ToArray())
+                : DBNull.Value;
 
             answerTable.Rows.Add(row);
         }
@@ -197,37 +202,8 @@ internal class AzureSqlService
         answerBulkCopy.ColumnMappings.Add("PositiveSentimentConfidenceScore", "PositiveSentimentConfidenceScore");
         answerBulkCopy.ColumnMappings.Add("NeutralSentimentConfidenceScore", "NeutralSentimentConfidenceScore");
         answerBulkCopy.ColumnMappings.Add("NegativeSentimentConfidenceScore", "NegativeSentimentConfidenceScore");
+        answerBulkCopy.ColumnMappings.Add("Embedding", "Embedding");
 
         await answerBulkCopy.WriteToServerAsync(answerTable);
-    }
-
-    internal async Task UploadSurveyQuestionAnswerVectorsAsync(List<AnswerVector> answerVectors)
-    {
-        using var connection = new SqlConnection(_connectionString);
-        if (_useManagedIdentity) connection.AccessToken = await GetAccessTokenAsync();
-        await connection.OpenAsync();
-
-        var vectorTable = new DataTable();
-        // don't need a column for ID because I wised up and made it an identity(1,1)
-        vectorTable.Columns.Add("SurveyQuestionAnswerId", typeof(Guid));
-        vectorTable.Columns.Add("Vector", typeof(float));
-
-        foreach (var vector in answerVectors)
-        {
-            var row = vectorTable.NewRow();
-            row["SurveyQuestionAnswerId"] = vector.AnswerId;
-            row["Vector"] = vector.Vector;
-
-            vectorTable.Rows.Add(row);
-        }
-
-        using var vectorBulkCopy = new SqlBulkCopy(connection);
-        vectorBulkCopy.BulkCopyTimeout = 0; // no timeout..
-
-        vectorBulkCopy.DestinationTableName = "SurveyQuestionAnswerVector";
-        vectorBulkCopy.ColumnMappings.Add("SurveyQuestionAnswerId", "SurveyQuestionAnswerId");
-        vectorBulkCopy.ColumnMappings.Add("Vector", "Vector");
-
-        await vectorBulkCopy.WriteToServerAsync(vectorTable);
     }
 }

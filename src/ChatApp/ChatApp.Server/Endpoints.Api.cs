@@ -53,6 +53,13 @@ public static partial class Endpoints
             return Results.Ok(suggestions);
         }).WithName("SuggestQuestions");
 
+
+        app.MapGet("/testing/{surveyId}", async ([FromServices] ChatCompletionService chat, [FromServices] SurveyService surveyService, [FromQuery] string userQuestion, [FromRoute] Guid surveyId) =>
+        {
+            var embedding = await chat.GetEmbeddingAsync(userQuestion);
+            return await surveyService.VectorSearchAsync(surveyId, userQuestion, embedding);
+        });
+
         return app;
     }
 }

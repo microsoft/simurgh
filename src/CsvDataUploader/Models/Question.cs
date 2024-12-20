@@ -1,4 +1,6 @@
-﻿public class Question
+﻿namespace CsvDataUploader.Models;
+
+public class Question
 {
     public Question() { }
     public Question(Guid surveyId, string text, string dataType, string description)

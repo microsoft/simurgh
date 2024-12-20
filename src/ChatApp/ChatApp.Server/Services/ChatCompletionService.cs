@@ -135,6 +135,16 @@ public class ChatCompletionService
         return completion.Split('\n').ToList();
     }
 
+
+    public async Task<ReadOnlyMemory<float>> GetEmbeddingAsync(string userQuestion)
+    {
+#pragma warning disable SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+        var embeddedQuery = await _kernel.GetRequiredService<ITextEmbeddingGenerationService>().GenerateEmbeddingAsync(userQuestion);
+#pragma warning restore SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+
+        return embeddedQuery;
+    }
+
     internal static AuthorRole ParseRole(string roleName)
     {
         return (roleName.ToLower() ?? string.Empty) switch
