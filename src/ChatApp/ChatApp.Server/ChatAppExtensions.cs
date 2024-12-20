@@ -134,14 +134,16 @@ internal static class ChatAppExtensions
             if (string.IsNullOrWhiteSpace(aoaiOpts.CurrentValue.APIKey))
             {
 #pragma warning disable SKEXP0010 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-                builder.AddAzureOpenAIChatCompletion(aoaiOpts.CurrentValue.Deployment, aoaiOpts.CurrentValue.Endpoint, defaultAzureCreds);
+                builder.AddAzureOpenAIChatCompletion(aoaiOpts.CurrentValue.ChatDeployment, aoaiOpts.CurrentValue.Endpoint, defaultAzureCreds);
+                builder.AddAzureOpenAITextEmbeddingGeneration(aoaiOpts.CurrentValue.EmbeddingsDeployment, aoaiOpts.CurrentValue.Endpoint, defaultAzureCreds);
 #pragma warning restore SKEXP0010 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
             }
             else
             {
                 // api key
 #pragma warning disable SKEXP0010 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-                builder.AddAzureOpenAIChatCompletion(aoaiOpts.CurrentValue.Deployment, aoaiOpts.CurrentValue.Endpoint, aoaiOpts.CurrentValue.APIKey);
+                builder.AddAzureOpenAIChatCompletion(aoaiOpts.CurrentValue.ChatDeployment, aoaiOpts.CurrentValue.Endpoint, aoaiOpts.CurrentValue.APIKey);
+                builder.AddAzureOpenAITextEmbeddingGeneration(aoaiOpts.CurrentValue.EmbeddingsDeployment, aoaiOpts.CurrentValue.Endpoint, aoaiOpts.CurrentValue.APIKey);
 #pragma warning restore SKEXP0010 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
             }
 
