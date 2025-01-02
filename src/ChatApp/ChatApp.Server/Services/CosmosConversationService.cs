@@ -19,7 +19,7 @@ internal class CosmosConversationService
         _cosmosClient = cosmosClient;
 
         _databaseId = cosmosOptions.Value.CosmosDatabaseId;
-        _containerId = cosmosOptions.Value.CosmosChatHistoryContainerId;
+        _containerId = cosmosOptions.Value.ContainerId;
 
         // TodoItems >> db name
         // Items >> structured data
@@ -32,20 +32,20 @@ internal class CosmosConversationService
         // todo: parameterize throughput and partition key as configuration
 
         ContainerResponse containerResponse;
-        if (cosmosOptions.Value.CosmosChatHistoryContainerRUs.HasValue)
+        if (cosmosOptions.Value.ContainerRUs.HasValue)
         {
-            if (cosmosOptions.Value.CosmosChatHistoryContainerRUs.Value < 400)
+            if (cosmosOptions.Value.ContainerRUs.Value < 400)
                 throw new Exception("Cannot create a container with less than 400 RUs.");
 
             containerResponse = _database.CreateContainerIfNotExistsAsync(
                     _containerId,
-                    cosmosOptions.Value.CosmosChatHistoryContainerPartitionKey,
-                    cosmosOptions.Value.CosmosChatHistoryContainerRUs.Value).Result;
+                    cosmosOptions.Value.PartitionKey,
+                    cosmosOptions.Value.ContainerRUs.Value).Result;
         }
         else
             containerResponse = _database.CreateContainerIfNotExistsAsync(
                 _containerId,
-                cosmosOptions.Value.CosmosChatHistoryContainerPartitionKey).Result;
+                cosmosOptions.Value.PartitionKey).Result;
 
         _container = containerResponse.Container;
     }
