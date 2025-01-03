@@ -1,4 +1,6 @@
-﻿using ChatApp.Server.Models;
+﻿using Azure.Core;
+using Azure.Identity;
+using ChatApp.Server.Models;
 using Microsoft.Data.SqlClient;
 using Newtonsoft.Json;
 using System.Data;
@@ -9,17 +11,42 @@ namespace ChatApp.Server.Services;
 public class SurveyService
 {
     private readonly string _connectionString;
+    private readonly bool _useManagedIdentity = false;
+    private readonly string? _tenantId = null;
 
-    public SurveyService(string connectionString)
+    public SurveyService(string connectionString, string? tenantId)
     {
+        var connectionStringBuilder = new SqlConnectionStringBuilder(connectionString);
 
-        _connectionString = connectionString;
+        if (connectionStringBuilder.Authentication == SqlAuthenticationMethod.ActiveDirectoryManagedIdentity)
+        {
+            _tenantId = tenantId;
+            _useManagedIdentity = true;
+            // this is really goofy but managed identity doesn't work with SqlConnectionStringBuilder
+            // for local settings unless you set the token yourself using DefaultAzureCredential
+            // see GetAccessTokenAsync, but you cannot set the AccessToken property on the connection
+            // if the auth method has been set on the connection string, so we start by saying it is
+            // managed identity and then set it to not specified so we can set the token later
+            connectionStringBuilder.Authentication = SqlAuthenticationMethod.NotSpecified;
+        }
+
+        _connectionString = connectionStringBuilder.ConnectionString;
+    }
+
+    private async Task<string> GetAccessTokenAsync()
+    {
+        var defaultAzureCredential = string.IsNullOrWhiteSpace(_tenantId)
+            ? new DefaultAzureCredential()
+            : new DefaultAzureCredential(new DefaultAzureCredentialOptions() { TenantId = _tenantId });
+        var tokenResult = await defaultAzureCredential.GetTokenAsync(new TokenRequestContext(scopes: ["https://database.windows.net/.default"]));
+        return tokenResult.Token;
     }
 
     public async Task<IEnumerable<Survey>> GetSurveysAsync()
     {
         using var connection = new SqlConnection(_connectionString);
-        connection.Open();
+        if (_useManagedIdentity) connection.AccessToken = await GetAccessTokenAsync();
+        await connection.OpenAsync();
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT Id, Filename, Version FROM Survey";
 
@@ -43,7 +70,8 @@ public class SurveyService
     public async Task<List<SurveyQuestion>> GetSurveyQuestionsAsync(Guid surveyId)
     {
         using var connection = new SqlConnection(_connectionString);
-        connection.Open();
+        if (_useManagedIdentity) connection.AccessToken = await GetAccessTokenAsync();
+        await connection.OpenAsync();
         await using var command = connection.CreateCommand();
 
         command.CommandText = """
@@ -82,7 +110,8 @@ public class SurveyService
     public async Task<List<VectorSearchResult>> VectorSearchAsync(ReadOnlyMemory<float> embeddedQuestion, VectorSearchOptions options)
     {
         using var connection = new SqlConnection(_connectionString);
-        connection.Open();
+        if (_useManagedIdentity) connection.AccessToken = await GetAccessTokenAsync();
+        await connection.OpenAsync();
 
         var embeddingJson = JsonConvert.SerializeObject(embeddedQuestion.ToArray());
 
@@ -221,7 +250,8 @@ public class SurveyService
     public async Task<List<dynamic>> ExecuteSqlQueryAsync(string query)
     {
         using var connection = new SqlConnection(_connectionString);
-        connection.Open();
+        if (_useManagedIdentity) connection.AccessToken = await GetAccessTokenAsync();
+        await connection.OpenAsync();
 
         var sqlCommand = new SqlCommand(query, connection);
 
@@ -272,7 +302,8 @@ public class SurveyService
         var dataMetadataString = new StringBuilder();
 
         using var connection = new SqlConnection(_connectionString);
-        connection.Open();
+        if (_useManagedIdentity) connection.AccessToken = await GetAccessTokenAsync();
+        await connection.OpenAsync();
 
         using var command = new SqlCommand(metadataQuery, connection);
         using var reader = await command.ExecuteReaderAsync();
@@ -289,7 +320,8 @@ public class SurveyService
         var tableSchemas = new Dictionary<string, List<string>>();
 
         using var connection = new SqlConnection(_connectionString);
-        connection.Open();
+        if (_useManagedIdentity) connection.AccessToken = await GetAccessTokenAsync();
+        await connection.OpenAsync();
 
         var query = @"
             SELECT 

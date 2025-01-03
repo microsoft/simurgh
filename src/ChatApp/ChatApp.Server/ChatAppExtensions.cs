@@ -35,7 +35,7 @@ internal static class ChatAppExtensions
         services.AddScoped(sp =>
         {
             var connStr = config.GetConnectionString("SurveysDatabase") ?? throw new ArgumentNullException("ConnectionStrings:SurveysDatabase");
-            return new SurveyService(connStr);
+            return new SurveyService(connStr, config["AZURE_TENANT_ID"]);
         });
 
         var isChatEnabled = frontendSettings?.HistoryEnabled ?? false;
@@ -96,7 +96,7 @@ internal static class ChatAppExtensions
             builder.Services.AddScoped(sp =>
             {
                 var connStr = config.GetConnectionString("SurveysDatabase") ?? throw new ArgumentNullException("ConnectionStrings:SurveysDatabase");
-                return new SurveyService(connStr);
+                return new SurveyService(connStr, config["AZURE_TENANT_ID"]);
             });
 
             // Register the CosmosClient with the Kernel services collection
