@@ -167,6 +167,8 @@ foreach (var row in rowsToUpload)
         {
             // todo: potentially move header descriptions into the save file as a separate special row?
             question = new(surveyId, key, numericVal.HasValue ? "numeric" : "string", headerDescriptions[key] ?? string.Empty);
+            if (vectorizationService != null) // generating embedding off a combination of the question and its description if available; description provides optional context
+                question.Embedding = await vectorizationService.GetEmbeddingAsync(key + Environment.NewLine + headerDescriptions[key] ?? string.Empty);
             questions.Add(key, question);
         }
 

@@ -97,6 +97,7 @@ create table
         Question nvarchar (max),
         DataType varchar(20) null,
         Description nvarchar (max) null,
+        Embedding vector(1536) null,
         constraint FK_Survey_SurveyQuestion foreign key (SurveyId) references Survey (Id)
     );
 
