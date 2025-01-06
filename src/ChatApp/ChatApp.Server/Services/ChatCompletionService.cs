@@ -19,13 +19,27 @@ public class ChatCompletionService
 
     private const string SystemMessage = $$$"""
         You're goal is to answer user questions about survey data inside of a SQL database. Do not change the original prompt.
+        """;
+    /*
+     
+
+    
 
         These surveys are primarily about Net Promoter Score (NPS): a measure of customer loyalty as an integer between 0 and 10.
 
         Be sure to explain your reasoning and show your work. Consider showing any SQL queries you used to generate your answers.
-        """;
-    /*
-     
+
+
+
+
+
+
+
+
+
+
+
+
      You have access to the following plugins to achieve this: SqlDdPlugin.
 
         For context, here are common accronyms in the data:
@@ -52,8 +66,8 @@ public class ChatCompletionService
         //_kernel.CreateFunctionFromPromptYaml(_sqlYamlManifest);
 
         // turn on / off vector search capability
-        //if (options?.Value?.IncludeVectorSearchPlugin ?? false)
-        //    _kernel.Plugins.AddFromType<VectorSearchPlugin>(serviceProvider: _kernel.Services);
+        if (options?.Value?.IncludeVectorSearchPlugin ?? false)
+            _kernel.Plugins.AddFromType<VectorSearchPlugin>(serviceProvider: _kernel.Services);
 
         _kernel.Plugins.AddFromType<SqlDbPlugin>(serviceProvider: _kernel.Services);
     }

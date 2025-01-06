@@ -7,6 +7,7 @@ using Newtonsoft.Json;
 
 #pragma warning disable SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 using System.ComponentModel;
+using System.Net;
 
 namespace ChatApp.Server.Plugins;
 
@@ -99,56 +100,60 @@ public class SqlDbPlugin
 
 
 
-    [KernelFunction(nameof(SplitUserQuestionAsync))]
-    [Description("Splits a user question into any subqueries.")]
-    [return: Description("Results of the queries")]
-    public async Task<List<dynamic>> SplitUserQuestionAsync(
-      [Description("The ID of the survey")] Guid surveyId,
-      [Description("The intent of the query.")] string input,
-      Kernel kernel)
-    {
-        var systemPrompt = $"""
-            You're goal is to is break down questions about survey data into components that can be answered with SQL queries.
-            If something would be performed like a subquery, consider that as a single compoent. If something would be performed like a join, consider that as a single component.
-            If something would be performed like a filter, consider that as a single component. Do not change the original prompt.
-            If omething would be performed like a group by, consider that as a single component. Do not change the original prompt.
-            Each new component should be on a new line.
-            """;
+    //[KernelFunction(nameof(SplitUserQuestionAsync))]
+    //[Description("Splits a user question into any subqueries.")]
+    //[return: Description("Results of the queries")]
+    //public async Task<List<dynamic>> SplitUserQuestionAsync(
+    //  [Description("The ID of the survey")] Guid surveyId,
+    //  [Description("The intent of the query.")] string input,
+    //  Kernel kernel)
+    //{
+    //    var systemPrompt = $"""
+    //        You're goal is to is break down questions about survey data into components that can be answered with SQL queries.
+    //        If something would be performed like a subquery, consider that as a single compoent. If something would be performed like a join, consider that as a single component.
+    //        If something would be performed like a filter, consider that as a single component. Do not change the original prompt.
+    //        If something would be performed like a group by, consider that as a single component. 
+    //        Keep interpretations as simple as possible. Avoid assumptions.
+    //        Each new component should be on a new line.
+    //        """;
 
-        // The parts will be used in prompt engineering to generate a SQL query.
+    //    // The parts will be used in prompt engineering to generate a SQL query.
 
-        var history = new ChatHistory(systemPrompt);
+    //    var history = new ChatHistory(systemPrompt);
 
-        history.AddUserMessage(input);
+    //    history.AddUserMessage(input);
 
-        var response = await _chatService.GetChatMessageContentAsync(history);
+    //    var response = await _chatService.GetChatMessageContentAsync(history);
 
-        var components = response.ToString().Split('\n');
+    //    var components = response.ToString().Split('\n');
 
-        var sqlQuery = string.Empty;
+    //    var componentQueries = new List<string>();
 
-        foreach (var component in components)
-        {
-            var embedding = await _embeddingService.GenerateEmbeddingAsync(component);
-            var mostRelevantQuestions = await _surveyService.VectorSearchQuestionAsync(surveyId, component, embedding);
-            sqlQuery = await GenerateSqlAggregateOfSurveyQuestionAsync(
-                component,
-                input,
-                surveyId,
-                mostRelevantQuestions,
-                sqlQuery,
-                kernel);
-        }
+    //    var sqlQuery = string.Empty;
 
-        //var combinedSqlQueries = await CombineSqlQueriesAsync(input, sqlQueries, kernel);
+    //    foreach (var component in components)
+    //    {
+    //        var embedding = await _embeddingService.GenerateEmbeddingAsync(component);
+    //        var mostRelevantQuestions = await _surveyService.VectorSearchQuestionAsync(surveyId, component, embedding);
+    //        sqlQuery = await GenerateSqlAggregateOfSurveyQuestionAsync(
+    //            component,
+    //            input,
+    //            surveyId,
+    //            mostRelevantQuestions,
+    //            sqlQuery,
+    //            kernel);
+    //        componentQueries.Add(new string(sqlQuery.ToCharArray()));
+    //    }
 
-        var dynResults = await ExecuteSqlQueryAsync(sqlQuery);
+    //    //var combinedSqlQueries = await CombineSqlQueriesAsync(input, sqlQueries, kernel);
 
-        return dynResults;
-    }
+    //    var dynResults = await ExecuteSqlQueryAsync(sqlQuery);
+
+    //    return dynResults;
+    //}
 
 
-    //[KernelFunction(nameof(CombineSqlQueriesAsync))]
+    [KernelFunction(nameof(CombineSqlQueriesAsync))]
     [Description("Splits a user question into any subqueries.")]
     [return: Description("String containing new line delimited components to the user's query")]
     public async Task<string> CombineSqlQueriesAsync(
@@ -190,7 +195,7 @@ public class SqlDbPlugin
         return response.ToString();
     }
 
-    //[KernelFunction(nameof(GenerateSqlAggregateOfSurveyQuestionAsync))]
+    [KernelFunction(nameof(GenerateSqlAggregateOfSurveyQuestionAsync))]
     [Description("Generates a SQL query based to find an aggregate for a given SurveyQuestionId.")]
     [return: Description("The SQL query")]
     public async Task<string> GenerateSqlAggregateOfSurveyQuestionAsync(
@@ -198,7 +203,7 @@ public class SqlDbPlugin
       [Description("The entire user quetsion.")] string input,
       [Description("The ID of the survey")] Guid surveyId,
       [Description("The top 3 most relevant surveyQuestions to the user query")] List<SurveyQuestion> surveyQuestions,
-      [Description("Existing SQL query to add to")] string existingSql,
+      //[Description("Existing SQL query to add to")] string existingSql,
       Kernel kernel)
     {
         var mostRelevantQuestionsJson = JsonConvert.SerializeObject(surveyQuestions);
@@ -230,15 +235,15 @@ public class SqlDbPlugin
             Only aggregate results where surveyId equals {surveyId}.
             """;
 
-        if (!string.IsNullOrWhiteSpace(existingSql))
-            systemPrompt += $"""
-                Build your query on top of this existing query:
-                {existingSql}
-                to better answer the entire user question: 
-                {input}
-                The combination could be as
-                a subquery, parent query, join, or where condition.
-                """;
+        //if (!string.IsNullOrWhiteSpace(existingSql))
+        //    systemPrompt += $"""
+        //        Build your query on top of this existing query:
+        //        {existingSql}
+        //        to better answer the entire user question: 
+        //        {input}
+        //        The combination could be as
+        //        a subquery, parent query, join, or where condition.
+        //        """;
 
 
         var history = new ChatHistory(systemPrompt);
@@ -250,7 +255,7 @@ public class SqlDbPlugin
         return response.ToString();
     }
 
-    //[KernelFunction(nameof(ExecuteSqlQueryAsync))]
+    [KernelFunction(nameof(ExecuteSqlQueryAsync))]
     [Description("Execute a query against the SQL Database.")]
     [return: Description("The result of the query")]
     //public async Task<List<dynamic>> ExecuteSqlQueryAsync([Description("The query to run")] string query)
