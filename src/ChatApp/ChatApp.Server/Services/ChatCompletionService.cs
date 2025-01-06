@@ -52,8 +52,8 @@ public class ChatCompletionService
         //_kernel.CreateFunctionFromPromptYaml(_sqlYamlManifest);
 
         // turn on / off vector search capability
-        if (options?.Value?.IncludeVectorSearchPlugin ?? false)
-            _kernel.Plugins.AddFromType<VectorSearchPlugin>(serviceProvider: _kernel.Services);
+        //if (options?.Value?.IncludeVectorSearchPlugin ?? false)
+        //    _kernel.Plugins.AddFromType<VectorSearchPlugin>(serviceProvider: _kernel.Services);
 
         _kernel.Plugins.AddFromType<SqlDbPlugin>(serviceProvider: _kernel.Services);
     }

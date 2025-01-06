@@ -20,14 +20,14 @@ public class VectorSearchPlugin
         _surveyService = surveyService;
     }
 
-    [KernelFunction(nameof(VectorSearchTextAsync))]
-    [Description("Find the ID of the most relevant SurveyQuestion to a given question about the survey data.")]
+    //[KernelFunction(nameof(VectorSearchTextAsync))]
+    [Description("Find the top 3 most relevant SurveyQuestions to a given question about the survey data ordered by relevance.")]
     [return: Description("Guid ID of the most relevant SurveyQuestion")]
-    public async Task<Guid> VectorSearchTextAsync([Description("ID of the survey that the provided question is seeking to analyze")] Guid surveyId, [Description("User question analyzing survey data")] string userQuestion)
+    public async Task<List<SurveyQuestion>> VectorSearchTextAsync([Description("ID of the survey that the provided question is seeking to analyze")] Guid surveyId, [Description("User question analyzing survey data")] string userQuestion)
     {
         var embedding = await _embeddingService.GenerateEmbeddingAsync(userQuestion);
 
-        return await _surveyService.VectorSearchQuestionAsync(surveyId, embedding);
+        return await _surveyService.VectorSearchQuestionAsync(surveyId, userQuestion, embedding);
     }
 
 

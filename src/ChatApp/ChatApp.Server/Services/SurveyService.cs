@@ -111,7 +111,7 @@ public class SurveyService
     /// <param name="surveyId"></param>
     /// <param name="embeddedUserQuestion"></param>
     /// <returns>SurveyQuestion ID</returns>
-    public async Task<Guid> VectorSearchQuestionAsync(Guid surveyId, ReadOnlyMemory<float> embeddedUserQuestion)
+    public async Task<List<SurveyQuestion>> VectorSearchQuestionAsync(Guid surveyId, string userQuestion, ReadOnlyMemory<float> embeddedUserQuestion)
     {
         try
         {
@@ -121,17 +121,98 @@ public class SurveyService
 
             var embeddingJson = JsonConvert.SerializeObject(embeddedUserQuestion.ToArray());
 
+            // todo: filter on surveyId
             var vectorSearch = $"""
+            DECLARE @k INT = @kParam;
+            DECLARE @q NVARCHAR(4000) = @qParam;
             DECLARE @e VECTOR(1536) = CAST(@eParam AS VECTOR(1536));
-
-            SELECT TOP(1)
-                Id,
-                VECTOR_DISTANCE('cosine', embedding, @e) AS distance
+            WITH keyword_search AS (
+                SELECT TOP(@k)
+                    id,
+                    RANK() OVER (ORDER BY rank) AS rank,
+                    question,
+                    description,
+                    datatype,
+                    surveyid
+                FROM
+                    (
+                        SELECT TOP(@k)
+                            sd.id,
+                            ftt.[RANK] AS rank,
+                            sd.question,
+                            sd.description,
+                            sd.datatype,
+                            sd.surveyid
+                        FROM 
+                            dbo.surveyquestion AS sd
+                        INNER JOIN 
+                            FREETEXTTABLE(dbo.surveyquestion, *, @q) AS ftt ON sd.id = ftt.[KEY]
+                    ) AS t
+                ORDER BY
+                    rank
+            ),
+            semantic_search AS
+            (
+                SELECT TOP(@k)
+                    id,
+                    RANK() OVER (ORDER BY distance) AS rank,
+                    question,
+                    description,
+                    datatype,
+                    surveyid
+                FROM
+                    (
+                        SELECT TOP(@k)
+                            id, 
+                            VECTOR_DISTANCE('cosine', embedding, @e) AS distance,
+                            question,
+                            description,
+                            datatype,
+                            surveyid
+                        FROM 
+                            dbo.surveyquestion
+                        ORDER BY
+                            distance
+                    ) AS t
+                ORDER BY
+                    rank
+            )
+            SELECT TOP(@k)
+                COALESCE(ss.id, ks.id) AS id,
+                COALESCE(1.0 / (@k + ss.rank), 0.0) +
+                COALESCE(1.0 / (@k + ks.rank), 0.0) AS score, -- Reciprocal Rank Fusion (RRF)
+                COALESCE(ss.question, ks.question) AS question,
+                COALESCE(ss.description, ks.description) AS description,
+                ss.rank AS semantic_rank,
+                ks.rank AS keyword_rank,
+                COALESCE(ss.surveyid, ks.surveyid) AS surveyid,
+                COALESCE(ss.datatype, ks.datatype) AS datatype,
+                COALESCE(ss.surveyid, ks.surveyid) AS surveyid
             FROM
-                dbo.SurveyQuestion
-            ORDER BY
-                distance
+                semantic_search ss
+            FULL OUTER JOIN
+                keyword_search ks ON ss.id = ks.id
+            ORDER BY 
+                score DESC
             """;
+            // todo: add datatype, surveyid
+
+
+            //var vectorSearch = $"""
+            //DECLARE @e VECTOR(1536) = CAST(@eParam AS VECTOR(1536));
+
+            //SELECT TOP(3)
+            //    Id,
+            //    SurveyId,
+            //    Question,
+            //    DataType,
+            //    Description,
+            //    VECTOR_DISTANCE('cosine', embedding, @e) AS distance
+            //FROM
+            //    dbo.SurveyQuestion
+            //ORDER BY
+            //    distance
+            //""";
             /*
             DECLARE @k INT = @kParam;
             DECLARE @s uniqueidentifier = @sParam;
@@ -144,18 +225,42 @@ public class SurveyService
 
             //  VECTOR_DISTANCE('cosine', embedding, @e) AS distance,
             var command = new SqlCommand(vectorSearch, connection);
+            command.Parameters.AddWithValue("@qParam", userQuestion);
             command.Parameters.AddWithValue("@eParam", embeddingJson);
-            //command.Parameters.AddWithValue("@kParam", 1);
+            command.Parameters.AddWithValue("@kParam", 3);
             //command.Parameters.AddWithValue("@sParam", surveyId);
-
             await using var reader = await command.ExecuteReaderAsync();
+
+            /*
+             
+               0. COALESCE(ss.id, ks.id) AS id,
+               1. COALESCE(1.0 / (@k + ss.rank), 0.0) +
+                COALESCE(1.0 / (@k + ks.rank), 0.0) AS score, -- Reciprocal Rank Fusion (RRF)
+               2. COALESCE(ss.question, ks.question) AS question,
+               3. COALESCE(ss.description, ks.description) AS description,
+               4. ss.rank AS semantic_rank,
+               5. ks.rank AS keyword_rank,
+               6. COALESCE(ss.surveyid, ks.surveyid) AS surveyid,
+               7. COALESCE(ss.datatype, ks.datatype) AS datatype,
+               8. COALESCE(ss.surveyid, ks.surveyid) AS surveyid
+             */
+
+
+            var questions = new List<SurveyQuestion>();
 
             while (await reader.ReadAsync())
             {
-                return reader.GetSqlGuid(0).Value;
+                questions.Add(new SurveyQuestion
+                {
+                    Id = reader.GetSqlGuid(0).Value,
+                    SurveyId = reader.GetSqlGuid(8).Value,
+                    Question = reader.GetString(2),
+                    DataType = reader.GetString(7),
+                    Description = reader.GetString(3)
+                });
             }
 
-            return Guid.Empty;
+            return questions;
         }
         catch (Exception ex)
         {

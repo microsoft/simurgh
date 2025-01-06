@@ -1,16 +1,23 @@
-﻿using ChatApp.Server.Services;
+﻿using ChatApp.Server.Models;
+using ChatApp.Server.Services;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
+using Microsoft.SemanticKernel.Embeddings;
+using Newtonsoft.Json;
+
+#pragma warning disable SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 using System.ComponentModel;
 
 namespace ChatApp.Server.Plugins;
 
 public class SqlDbPlugin
 {
+    private readonly ITextEmbeddingGenerationService _embeddingService;
     private readonly IChatCompletionService _chatService;
     private readonly SurveyService _surveyService;
-    public SqlDbPlugin(IChatCompletionService chatService, SurveyService surveyService)
+    public SqlDbPlugin(IChatCompletionService chatService, ITextEmbeddingGenerationService embeddingService, SurveyService surveyService)
     {
+        _embeddingService = embeddingService;
         _chatService = chatService;
         _surveyService = surveyService;
     }
@@ -94,13 +101,18 @@ public class SqlDbPlugin
 
     [KernelFunction(nameof(SplitUserQuestionAsync))]
     [Description("Splits a user question into any subqueries.")]
-    [return: Description("String containing new line delimited components to the user's query")]
-    public async Task<string> SplitUserQuestionAsync(
+    [return: Description("Results of the queries")]
+    public async Task<List<dynamic>> SplitUserQuestionAsync(
+      [Description("The ID of the survey")] Guid surveyId,
       [Description("The intent of the query.")] string input,
       Kernel kernel)
     {
         var systemPrompt = $"""
-            Break down the following user question into component parts. Each part should be on a new line.
+            You're goal is to is break down questions about survey data into components that can be answered with SQL queries.
+            If something would be performed like a subquery, consider that as a single compoent. If something would be performed like a join, consider that as a single component.
+            If something would be performed like a filter, consider that as a single component. Do not change the original prompt.
+            If omething would be performed like a group by, consider that as a single component. Do not change the original prompt.
+            Each new component should be on a new line.
             """;
 
         // The parts will be used in prompt engineering to generate a SQL query.
@@ -111,17 +123,37 @@ public class SqlDbPlugin
 
         var response = await _chatService.GetChatMessageContentAsync(history);
 
-        return response.ToString();
+        var components = response.ToString().Split('\n');
+
+        var sqlQuery = string.Empty;
+
+        foreach (var component in components)
+        {
+            var embedding = await _embeddingService.GenerateEmbeddingAsync(component);
+            var mostRelevantQuestions = await _surveyService.VectorSearchQuestionAsync(surveyId, component, embedding);
+            sqlQuery = await GenerateSqlAggregateOfSurveyQuestionAsync(
+                component,
+                input,
+                surveyId,
+                mostRelevantQuestions,
+                sqlQuery,
+                kernel);
+        }
+
+        //var combinedSqlQueries = await CombineSqlQueriesAsync(input, sqlQueries, kernel);
+
+        var dynResults = await ExecuteSqlQueryAsync(sqlQuery);
+
+        return dynResults;
     }
 
 
-    [KernelFunction(nameof(CombineSqlQueriesAsync))]
+    //[KernelFunction(nameof(CombineSqlQueriesAsync))]
     [Description("Splits a user question into any subqueries.")]
     [return: Description("String containing new line delimited components to the user's query")]
     public async Task<string> CombineSqlQueriesAsync(
       [Description("User question")] string input,
-      [Description("SQL query representing a component of the user's quetsion.")] string sqlQuery1,
-      [Description("SQL query representing a component of the user's quetsion.")] string sqlQuery2,
+      [Description("A list of SQL queries representing a components of the user's quetsion.")] List<string> sqlQueries,
       Kernel kernel)
     {
         var systemPrompt = $"""
@@ -144,9 +176,7 @@ public class SqlDbPlugin
             - NegativeSentimentConfidenceScore (float) nullable, contains the confidence score for negative sentiment for text answers
             Combine the following SQL queries into a single query that answers the user question: "{input}".
 
-            {sqlQuery1}
-
-            {sqlQuery2}
+            {string.Join("\n", sqlQueries)}
             """;
 
         // The parts will be used in prompt engineering to generate a SQL query.
@@ -160,15 +190,19 @@ public class SqlDbPlugin
         return response.ToString();
     }
 
-    [KernelFunction(nameof(GenerateSqlAggregateOfSurveyQuestionAsync))]
+    //[KernelFunction(nameof(GenerateSqlAggregateOfSurveyQuestionAsync))]
     [Description("Generates a SQL query based to find an aggregate for a given SurveyQuestionId.")]
     [return: Description("The SQL query")]
     public async Task<string> GenerateSqlAggregateOfSurveyQuestionAsync(
-      [Description("The intent of the query.")] string input,
+      [Description("The intent of the query.")] string queryIntent,
+      [Description("The entire user quetsion.")] string input,
       [Description("The ID of the survey")] Guid surveyId,
-      [Description("SurveyQuestionId")] Guid surveyQuestiondId,
+      [Description("The top 3 most relevant surveyQuestions to the user query")] List<SurveyQuestion> surveyQuestions,
+      [Description("Existing SQL query to add to")] string existingSql,
       Kernel kernel)
     {
+        var mostRelevantQuestionsJson = JsonConvert.SerializeObject(surveyQuestions);
+
         var systemPrompt = $"""
             Given the follow SQL schema containing survey data
             Table: dbo.SurveyQuestion contains a definition for questions in the survey
@@ -187,12 +221,25 @@ public class SqlDbPlugin
             - PositiveSentimentConfidenceScore (float) nullable, contains the confidence score for positive sentiment for text answers
             - NeutralSentimentConfidenceScore (float) nullable, contains the confidence score for neutral sentiment for text answers
             - NegativeSentimentConfidenceScore (float) nullable, contains the confidence score for negative sentiment for text answers
-            and the most relevant survey question based on the user question has an Id of {surveyQuestiondId}
-            generate a syntactically correct SQL Server query in Transact-SQL dialect to answer the user question: "{input}".
+            and the most top 3 most relevant survey questions based on the user question has an Id of {mostRelevantQuestionsJson}
+            generate a syntactically correct SQL Server query in Transact-SQL dialect to answer the user question: "{queryIntent}".
+            Consider that multi-part questions may require subqueries.
             Only provide the SQL query. Do not encapsulate it in markdown.
             For aggregates, ignore null or negative answers.
+            If not relevant question is provided, try searching for the most relevant question based on the user question - be sure to also check answer text for clues - do not use AND when you're unsure.
             Only aggregate results where surveyId equals {surveyId}.
             """;
+
+        if (!string.IsNullOrWhiteSpace(existingSql))
+            systemPrompt += $"""
+                Build your query on top of this existing query:
+                {existingSql}
+                to better answer the entire user question: 
+                {input}
+                The combination could be as
+                a subquery, parent query, join, or where condition.
+                """;
+
 
         var history = new ChatHistory(systemPrompt);
 
@@ -203,12 +250,13 @@ public class SqlDbPlugin
         return response.ToString();
     }
 
-    [KernelFunction(nameof(ExecuteSqlQueryAsync))]
+    //[KernelFunction(nameof(ExecuteSqlQueryAsync))]
     [Description("Execute a query against the SQL Database.")]
     [return: Description("The result of the query")]
     //public async Task<List<dynamic>> ExecuteSqlQueryAsync([Description("The query to run")] string query)
     public async Task<List<dynamic>> ExecuteSqlQueryAsync([Description("The query to run")] string query)
     {
-       return await _surveyService.ExecuteSqlQueryAsync(query);
+        return await _surveyService.ExecuteSqlQueryAsync(query);
     }
 }
+#pragma warning restore SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
