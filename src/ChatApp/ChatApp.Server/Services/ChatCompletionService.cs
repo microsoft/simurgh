@@ -21,6 +21,8 @@ public class ChatCompletionService
         You're goal is to answer user questions about survey data inside of a SQL database. Do not change the original prompt.
 
         These surveys are primarily about Net Promoter Score (NPS): a measure of customer loyalty as an integer between 0 and 10.
+
+        Be sure to explain your reasoning and show your work. Consider showing any SQL queries you used to generate your answers.
         """;
     /*
      

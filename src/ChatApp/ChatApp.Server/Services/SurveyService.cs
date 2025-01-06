@@ -105,7 +105,64 @@ public class SurveyService
         return questions;
     }
 
+    /// <summary>
+    /// Find the most relevant SurveyQuestion based on the user's question
+    /// </summary>
+    /// <param name="surveyId"></param>
+    /// <param name="embeddedUserQuestion"></param>
+    /// <returns>SurveyQuestion ID</returns>
+    public async Task<Guid> VectorSearchQuestionAsync(Guid surveyId, ReadOnlyMemory<float> embeddedUserQuestion)
+    {
+        try
+        {
+            using var connection = new SqlConnection(_connectionString);
+            if (_useManagedIdentity) connection.AccessToken = await GetAccessTokenAsync();
+            await connection.OpenAsync();
 
+            var embeddingJson = JsonConvert.SerializeObject(embeddedUserQuestion.ToArray());
+
+            var vectorSearch = $"""
+            DECLARE @e VECTOR(1536) = CAST(@eParam AS VECTOR(1536));
+
+            SELECT TOP(1)
+                Id,
+                VECTOR_DISTANCE('cosine', embedding, @e) AS distance
+            FROM
+                dbo.SurveyQuestion
+            ORDER BY
+                distance
+            """;
+            /*
+            DECLARE @k INT = @kParam;
+            DECLARE @s uniqueidentifier = @sParam;
+             
+            WHERE
+                SurveyId = @s and
+                Embedding is not null
+             
+             */
+
+            //  VECTOR_DISTANCE('cosine', embedding, @e) AS distance,
+            var command = new SqlCommand(vectorSearch, connection);
+            command.Parameters.AddWithValue("@eParam", embeddingJson);
+            //command.Parameters.AddWithValue("@kParam", 1);
+            //command.Parameters.AddWithValue("@sParam", surveyId);
+
+            await using var reader = await command.ExecuteReaderAsync();
+
+            while (await reader.ReadAsync())
+            {
+                return reader.GetSqlGuid(0).Value;
+            }
+
+            return Guid.Empty;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+            throw;
+        }
+    }
 
     public async Task<List<VectorSearchResult>> VectorSearchAsync(ReadOnlyMemory<float> embeddedQuestion, VectorSearchOptions options)
     {
@@ -294,7 +351,7 @@ public class SurveyService
 
     public async Task<string> GetSurveyMetadataAsync(Guid SurveyId)
     {
-        string metadataQuery = @$"SELECT Id, Question, [Description]
+        string metadataQuery = @$"SELECT Id, Question, [DataType], [Description]
                 FROM[dbo].[SurveyQuestion]
                 WHERE SurveyId = '{SurveyId}'
             ";
@@ -310,7 +367,7 @@ public class SurveyService
 
         while (reader.Read())
         {
-            dataMetadataString.AppendLine($"- {reader["Id"]}|\"{reader["Question"]}\"|\"{reader["Description"]}\"");
+            dataMetadataString.AppendLine($"- {reader["Id"]}|\"{reader["Question"]}\"|\"{reader["DataType"]}\"|\"{reader["Description"]}\"");
         }
 
         return dataMetadataString.ToString();
