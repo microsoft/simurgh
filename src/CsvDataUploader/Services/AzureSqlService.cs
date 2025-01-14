@@ -27,6 +27,9 @@ internal class AzureSqlService
             connectionStringBuilder.Authentication = SqlAuthenticationMethod.NotSpecified;
         }
 
+        // doubling timeout to 60 seconds
+        connectionStringBuilder.CommandTimeout = 60;
+
         _connectionString = connectionStringBuilder.ConnectionString;
     }
 
