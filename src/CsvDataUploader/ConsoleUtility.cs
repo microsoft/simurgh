@@ -53,7 +53,7 @@ internal static class ConsoleUtility
     }
 
     // Adjust scale for better visualization
-    internal static void DrawBoxAndWhisker(int[] data, int scale = 25)
+    internal static void DrawBoxAndWhisker(int[] data, int scale = 1)
     {
         Array.Sort(data);
         int n = data.Length;
@@ -63,42 +63,46 @@ internal static class ConsoleUtility
         int min = data.Min();
         int max = data.Max();
 
-        int minPos = min / scale;
-        int q1Pos = (int)q1 / scale;
-        int q2Pos = (int)q2 / scale;
-        int q3Pos = (int)q3 / scale;
-        int maxPos = max / scale;
+        int consoleWidth = Console.WindowWidth - 1; // Adjust for console width
+        int minPos = (min * consoleWidth) / (max * scale);
+        int q1Pos = (int)((q1 * consoleWidth) / (max * scale));
+        int q2Pos = (int)((q2 * consoleWidth) / (max * scale));
+        int q3Pos = (int)((q3 * consoleWidth) / (max * scale));
+        int maxPos = (max * consoleWidth) / (max * scale);
 
         Console.WriteLine("Box and Whisker Diagram:");
-        Console.WriteLine(new string('-', 50));
         Console.WriteLine($"Min: {min}");
         Console.WriteLine($"Q1: {q1}");
         Console.WriteLine($"Median (Q2): {q2}");
         Console.WriteLine($"Q3: {q3}");
         Console.WriteLine($"Max: {max}");
-        Console.WriteLine(new string('-', 50));
 
+        StringBuilder diagram = new StringBuilder();
 
-        // Draw whiskers
-        for (int i = 0; i < minPos; i++) Console.Write(" ");
-        Console.Write("|");
-        for (int i = minPos + 1; i < q1Pos; i++) Console.Write("-");
-        Console.Write("|");
-        for (int i = q1Pos + 1; i < q3Pos; i++) Console.Write("-");
-        Console.Write("|");
-        for (int i = q3Pos + 1; i < maxPos; i++) Console.Write("-");
-        Console.Write("|");
-        Console.WriteLine();
+        for (int i = 0; i <= consoleWidth; i++)
+        {
+            if (i == minPos || i == maxPos || i == q1Pos || i == q3Pos)
+            {
+                diagram.Append('|');
+            }
+            else if (i > minPos && i < q1Pos)
+            {
+                diagram.Append('-');
+            }
+            else if (i > q1Pos && i < q3Pos)
+            {
+                diagram.Append('#');
+            }
+            else if (i > q3Pos && i < maxPos)
+            {
+                diagram.Append('-');
+            }
+            else
+            {
+                diagram.Append(' ');
+            }
+        }
 
-        // Draw box
-        for (int i = 0; i < minPos; i++) Console.Write(" ");
-        Console.Write("|");
-        for (int i = minPos + 1; i < q1Pos; i++) Console.Write(" ");
-        Console.Write("|");
-        for (int i = q1Pos + 1; i < q3Pos; i++) Console.Write("=");
-        Console.Write("|");
-        for (int i = q3Pos + 1; i < maxPos; i++) Console.Write(" ");
-        Console.Write("|");
-        Console.WriteLine();
+        Console.WriteLine(diagram.ToString());
     }
 }
