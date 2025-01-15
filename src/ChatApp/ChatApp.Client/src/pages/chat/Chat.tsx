@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useContext, useLayoutEffect } from 'react'
-import { CommandBarButton, IconButton, Dialog, DialogType, Stack, DetailsList, DetailsListLayoutMode, SelectionMode, DefaultButton } from '@fluentui/react'
+import { CommandBarButton, IconButton, Dialog, DialogType, Stack, DetailsList, DetailsListLayoutMode, SelectionMode, DefaultButton, Button } from '@fluentui/react'
 import { SquareRegular, ShieldLockRegular, ErrorCircleRegular } from '@fluentui/react-icons'
 
 import ReactMarkdown from 'react-markdown'
@@ -750,7 +750,7 @@ const Chat = () => {
         { key: 'description', name: 'Description', fieldName: 'description', minWidth: 400, maxWidth: 1000, isResizable: true }
     ];
 
-    const copyToClipboard = (e: React.MouseEvent<HTMLDivElement | HTMLAnchorElement | HTMLSpanElement | HTMLButtonElement | BaseButton | Button>, query: string): void => {
+    const copyToClipboard = (e: React.MouseEvent<HTMLDivElement | HTMLAnchorElement | HTMLSpanElement | HTMLButtonElement  | Button>, query: string): void => {
         navigator.clipboard.writeText(query);
     };
 

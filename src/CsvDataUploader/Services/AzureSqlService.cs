@@ -27,6 +27,9 @@ internal class AzureSqlService
             connectionStringBuilder.Authentication = SqlAuthenticationMethod.NotSpecified;
         }
 
+        // doubling timeout to 60 seconds
+        connectionStringBuilder.CommandTimeout = 60;
+
         _connectionString = connectionStringBuilder.ConnectionString;
     }
 
@@ -126,6 +129,7 @@ internal class AzureSqlService
         questionTable.Columns.Add("Question", typeof(string));
         questionTable.Columns.Add("DataType", typeof(string));
         questionTable.Columns.Add("Description", typeof(string));
+        questionTable.Columns.Add("Embedding", typeof(string));
 
         foreach (var question in questions)
         {
@@ -135,6 +139,9 @@ internal class AzureSqlService
             row["Question"] = question.Text;
             row["DataType"] = question.DataType;
             row["Description"] = question.Description;
+            row["Embedding"] = question.Embedding.HasValue
+                ? JsonConvert.SerializeObject(question.Embedding.Value.ToArray())
+                : DBNull.Value;
             questionTable.Rows.Add(row);
         }
 
@@ -146,6 +153,7 @@ internal class AzureSqlService
         questionBulkCopy.ColumnMappings.Add("Question", "Question");
         questionBulkCopy.ColumnMappings.Add("DataType", "DataType");
         questionBulkCopy.ColumnMappings.Add("Description", "Description");
+        questionBulkCopy.ColumnMappings.Add("Embedding", "Embedding");
 
         await questionBulkCopy.WriteToServerAsync(questionTable);
     }

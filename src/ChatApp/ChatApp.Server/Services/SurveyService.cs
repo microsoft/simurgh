@@ -1,4 +1,6 @@
-﻿using ChatApp.Server.Models;
+﻿using Azure.Core;
+using Azure.Identity;
+using ChatApp.Server.Models;
 using Microsoft.Data.SqlClient;
 using Newtonsoft.Json;
 using System.Data;
@@ -9,17 +11,42 @@ namespace ChatApp.Server.Services;
 public class SurveyService
 {
     private readonly string _connectionString;
+    private readonly bool _useManagedIdentity = false;
+    private readonly string? _tenantId = null;
 
-    public SurveyService(string connectionString)
+    public SurveyService(string connectionString, string? tenantId)
     {
+        var connectionStringBuilder = new SqlConnectionStringBuilder(connectionString);
 
-        _connectionString = connectionString;
+        if (connectionStringBuilder.Authentication == SqlAuthenticationMethod.ActiveDirectoryManagedIdentity)
+        {
+            _tenantId = tenantId;
+            _useManagedIdentity = true;
+            // this is really goofy but managed identity doesn't work with SqlConnectionStringBuilder
+            // for local settings unless you set the token yourself using DefaultAzureCredential
+            // see GetAccessTokenAsync, but you cannot set the AccessToken property on the connection
+            // if the auth method has been set on the connection string, so we start by saying it is
+            // managed identity and then set it to not specified so we can set the token later
+            connectionStringBuilder.Authentication = SqlAuthenticationMethod.NotSpecified;
+        }
+
+        _connectionString = connectionStringBuilder.ConnectionString;
+    }
+
+    private async Task<string> GetAccessTokenAsync()
+    {
+        var defaultAzureCredential = string.IsNullOrWhiteSpace(_tenantId)
+            ? new DefaultAzureCredential()
+            : new DefaultAzureCredential(new DefaultAzureCredentialOptions() { TenantId = _tenantId });
+        var tokenResult = await defaultAzureCredential.GetTokenAsync(new TokenRequestContext(scopes: ["https://database.windows.net/.default"]));
+        return tokenResult.Token;
     }
 
     public async Task<IEnumerable<Survey>> GetSurveysAsync()
     {
         using var connection = new SqlConnection(_connectionString);
-        connection.Open();
+        if (_useManagedIdentity) connection.AccessToken = await GetAccessTokenAsync();
+        await connection.OpenAsync();
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT Id, Filename, Version FROM Survey";
 
@@ -43,7 +70,8 @@ public class SurveyService
     public async Task<List<SurveyQuestion>> GetSurveyQuestionsAsync(Guid surveyId)
     {
         using var connection = new SqlConnection(_connectionString);
-        connection.Open();
+        if (_useManagedIdentity) connection.AccessToken = await GetAccessTokenAsync();
+        await connection.OpenAsync();
         await using var command = connection.CreateCommand();
 
         command.CommandText = """
@@ -77,12 +105,175 @@ public class SurveyService
         return questions;
     }
 
+    /// <summary>
+    /// Find the most relevant SurveyQuestion based on the user's question
+    /// </summary>
+    /// <param name="surveyId"></param>
+    /// <param name="embeddedUserQuestion"></param>
+    /// <returns>SurveyQuestion ID</returns>
+    public async Task<List<SurveyQuestion>> VectorSearchQuestionAsync(Guid surveyId, string userQuestion, ReadOnlyMemory<float> embeddedUserQuestion)
+    {
+        try
+        {
+            using var connection = new SqlConnection(_connectionString);
+            if (_useManagedIdentity) connection.AccessToken = await GetAccessTokenAsync();
+            await connection.OpenAsync();
 
+            var embeddingJson = JsonConvert.SerializeObject(embeddedUserQuestion.ToArray());
+
+            // todo: filter on surveyId
+            var vectorSearch = $"""
+            DECLARE @k INT = @kParam;
+            DECLARE @q NVARCHAR(4000) = @qParam;
+            DECLARE @e VECTOR(1536) = CAST(@eParam AS VECTOR(1536));
+            WITH keyword_search AS (
+                SELECT TOP(@k)
+                    id,
+                    RANK() OVER (ORDER BY rank) AS rank,
+                    question,
+                    description,
+                    datatype,
+                    surveyid
+                FROM
+                    (
+                        SELECT TOP(@k)
+                            sd.id,
+                            ftt.[RANK] AS rank,
+                            sd.question,
+                            sd.description,
+                            sd.datatype,
+                            sd.surveyid
+                        FROM 
+                            dbo.surveyquestion AS sd
+                        INNER JOIN 
+                            FREETEXTTABLE(dbo.surveyquestion, *, @q) AS ftt ON sd.id = ftt.[KEY]
+                    ) AS t
+                ORDER BY
+                    rank
+            ),
+            semantic_search AS
+            (
+                SELECT TOP(@k)
+                    id,
+                    RANK() OVER (ORDER BY distance) AS rank,
+                    question,
+                    description,
+                    datatype,
+                    surveyid
+                FROM
+                    (
+                        SELECT TOP(@k)
+                            id, 
+                            VECTOR_DISTANCE('cosine', embedding, @e) AS distance,
+                            question,
+                            description,
+                            datatype,
+                            surveyid
+                        FROM 
+                            dbo.surveyquestion
+                        ORDER BY
+                            distance
+                    ) AS t
+                ORDER BY
+                    rank
+            )
+            SELECT TOP(@k)
+                COALESCE(ss.id, ks.id) AS id,
+                COALESCE(1.0 / (@k + ss.rank), 0.0) +
+                COALESCE(1.0 / (@k + ks.rank), 0.0) AS score, -- Reciprocal Rank Fusion (RRF)
+                COALESCE(ss.question, ks.question) AS question,
+                COALESCE(ss.description, ks.description) AS description,
+                ss.rank AS semantic_rank,
+                ks.rank AS keyword_rank,
+                COALESCE(ss.surveyid, ks.surveyid) AS surveyid,
+                COALESCE(ss.datatype, ks.datatype) AS datatype,
+                COALESCE(ss.surveyid, ks.surveyid) AS surveyid
+            FROM
+                semantic_search ss
+            FULL OUTER JOIN
+                keyword_search ks ON ss.id = ks.id
+            ORDER BY 
+                score DESC
+            """;
+            // todo: add datatype, surveyid
+
+
+            //var vectorSearch = $"""
+            //DECLARE @e VECTOR(1536) = CAST(@eParam AS VECTOR(1536));
+
+            //SELECT TOP(3)
+            //    Id,
+            //    SurveyId,
+            //    Question,
+            //    DataType,
+            //    Description,
+            //    VECTOR_DISTANCE('cosine', embedding, @e) AS distance
+            //FROM
+            //    dbo.SurveyQuestion
+            //ORDER BY
+            //    distance
+            //""";
+            /*
+            DECLARE @k INT = @kParam;
+            DECLARE @s uniqueidentifier = @sParam;
+             
+            WHERE
+                SurveyId = @s and
+                Embedding is not null
+             
+             */
+
+            //  VECTOR_DISTANCE('cosine', embedding, @e) AS distance,
+            var command = new SqlCommand(vectorSearch, connection);
+            command.Parameters.AddWithValue("@qParam", userQuestion);
+            command.Parameters.AddWithValue("@eParam", embeddingJson);
+            command.Parameters.AddWithValue("@kParam", 3);
+            //command.Parameters.AddWithValue("@sParam", surveyId);
+            await using var reader = await command.ExecuteReaderAsync();
+
+            /*
+             
+               0. COALESCE(ss.id, ks.id) AS id,
+               1. COALESCE(1.0 / (@k + ss.rank), 0.0) +
+                COALESCE(1.0 / (@k + ks.rank), 0.0) AS score, -- Reciprocal Rank Fusion (RRF)
+               2. COALESCE(ss.question, ks.question) AS question,
+               3. COALESCE(ss.description, ks.description) AS description,
+               4. ss.rank AS semantic_rank,
+               5. ks.rank AS keyword_rank,
+               6. COALESCE(ss.surveyid, ks.surveyid) AS surveyid,
+               7. COALESCE(ss.datatype, ks.datatype) AS datatype,
+               8. COALESCE(ss.surveyid, ks.surveyid) AS surveyid
+             */
+
+
+            var questions = new List<SurveyQuestion>();
+
+            while (await reader.ReadAsync())
+            {
+                questions.Add(new SurveyQuestion
+                {
+                    Id = reader.GetSqlGuid(0).Value,
+                    SurveyId = reader.GetSqlGuid(8).Value,
+                    Question = reader.GetString(2),
+                    DataType = reader.GetString(7),
+                    Description = reader.GetString(3)
+                });
+            }
+
+            return questions;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+            throw;
+        }
+    }
 
     public async Task<List<VectorSearchResult>> VectorSearchAsync(ReadOnlyMemory<float> embeddedQuestion, VectorSearchOptions options)
     {
         using var connection = new SqlConnection(_connectionString);
-        connection.Open();
+        if (_useManagedIdentity) connection.AccessToken = await GetAccessTokenAsync();
+        await connection.OpenAsync();
 
         var embeddingJson = JsonConvert.SerializeObject(embeddedQuestion.ToArray());
 
@@ -221,7 +412,8 @@ public class SurveyService
     public async Task<List<dynamic>> ExecuteSqlQueryAsync(string query)
     {
         using var connection = new SqlConnection(_connectionString);
-        connection.Open();
+        if (_useManagedIdentity) connection.AccessToken = await GetAccessTokenAsync();
+        await connection.OpenAsync();
 
         var sqlCommand = new SqlCommand(query, connection);
 
@@ -264,7 +456,7 @@ public class SurveyService
 
     public async Task<string> GetSurveyMetadataAsync(Guid SurveyId)
     {
-        string metadataQuery = @$"SELECT Id, Question, [Description]
+        string metadataQuery = @$"SELECT Id, Question, [DataType], [Description]
                 FROM[dbo].[SurveyQuestion]
                 WHERE SurveyId = '{SurveyId}'
             ";
@@ -272,14 +464,15 @@ public class SurveyService
         var dataMetadataString = new StringBuilder();
 
         using var connection = new SqlConnection(_connectionString);
-        connection.Open();
+        if (_useManagedIdentity) connection.AccessToken = await GetAccessTokenAsync();
+        await connection.OpenAsync();
 
         using var command = new SqlCommand(metadataQuery, connection);
         using var reader = await command.ExecuteReaderAsync();
 
         while (reader.Read())
         {
-            dataMetadataString.AppendLine($"- {reader["Id"]}|\"{reader["Question"]}\"|\"{reader["Description"]}\"");
+            dataMetadataString.AppendLine($"- {reader["Id"]}|\"{reader["Question"]}\"|\"{reader["DataType"]}\"|\"{reader["Description"]}\"");
         }
 
         return dataMetadataString.ToString();
@@ -289,7 +482,8 @@ public class SurveyService
         var tableSchemas = new Dictionary<string, List<string>>();
 
         using var connection = new SqlConnection(_connectionString);
-        connection.Open();
+        if (_useManagedIdentity) connection.AccessToken = await GetAccessTokenAsync();
+        await connection.OpenAsync();
 
         var query = @"
             SELECT 

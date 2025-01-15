@@ -8,6 +8,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 using System.Globalization;
+using TiktokenSharp;
 
 Console.ResetColor();
 
@@ -140,6 +141,11 @@ var questions = new Dictionary<string, Question>();
 
 ConsoleUtility.WriteProgressBar(0);
 
+// https://github.com/aiqinxuancai/TiktokenSharp <-- I don't recall if there is a more official way to do this without actually invoking the service/model...
+var tikToken = TikToken.EncodingForModel("gpt-4o");
+// key is the question text, value is a list of token counts for each answer
+var tokenCounts = new Dictionary<string, List<int>>();
+
 var lastPercent = 0;
 foreach (var row in rowsToUpload)
 {
@@ -167,6 +173,8 @@ foreach (var row in rowsToUpload)
         {
             // todo: potentially move header descriptions into the save file as a separate special row?
             question = new(surveyId, key, numericVal.HasValue ? "numeric" : "string", headerDescriptions[key] ?? string.Empty);
+            if (vectorizationService != null) // generating embedding off a combination of the question and its description if available; description provides optional context
+                question.Embedding = await vectorizationService.GetEmbeddingAsync(key + Environment.NewLine + headerDescriptions[key] ?? string.Empty);
             questions.Add(key, question);
         }
 
@@ -196,6 +204,15 @@ foreach (var row in rowsToUpload)
                     answer.NegativeSentimentConfidenceScore = analysis.ConfidenceScores.Negative;
                 }
             }
+
+            var tokens = tikToken.Encode(stringVal);
+
+            if (!tokenCounts.ContainsKey(key))
+                tokenCounts.Add(key, new List<int>{
+                    tokens.Count
+                });
+            else
+                tokenCounts[key].Add(tokens.Count);
         }
 
         var currentPercent = rowsToUpload.IndexOf(row) * 100 / rowsToUpload.Count;
@@ -206,6 +223,18 @@ foreach (var row in rowsToUpload)
     }
 }
 ConsoleUtility.WriteProgressBar(100, true);
+
+foreach (var tokenCount in tokenCounts)
+{
+    Console.WriteLine("Performing token count analysis on answers to: " + tokenCount.Key);
+    var question = questions[tokenCount.Key];
+    ConsoleUtility.DrawBoxAndWhisker([.. tokenCount.Value]);
+    Console.WriteLine(Environment.NewLine);
+}
+
+// todo: perform clustering for all unstructured data columns using Microsoft.ML then using aoai to generate labels
+// todo: store labels in not yet created column in the database
+
 
 Console.WriteLine(Environment.NewLine);
 Console.WriteLine($"Questions and answers processed... {questions.Count} questions and {surveyResponse.Count} responses");

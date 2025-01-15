@@ -16,9 +16,6 @@ param sqlServerAdminLogin string
 @secure()
 param sqlServerAdminPassword string
 
-@description('SQL Server name')
-param sqlServerName string = 'sqlsvr-omnicell'
-
 @description('SQL Database name')
 param sqlDBName string = 'chatbot'
 
@@ -27,13 +24,9 @@ param isCosmosServerless bool
 
 param cosmosDbName string = 'chatbot'
 
-param structuredDataContainerId string = 'documents'
-param structuredDataPartitionKey string = '/filename'
-param structuredDataRUs int = 400
-
-param chatHistoryContainerId string = 'conversations'
-param chatHistoryPartitionKey string = '/userId'
-param chatHistoryRUs int = 400
+param containerId string = 'conversations'
+param partitionKey string = '/userId'
+param RUs int = 400
 
 param appServicePlanName string = ''
 param backendServiceName string = ''
@@ -50,6 +43,13 @@ param chatDeploymentName string = 'chat'
 @description('Name of the chat completion model')
 param chatModelName string = 'gpt-4o'
 param chatModelVersion string = '2024-05-13'
+
+@description('Name of the chat completion model deployment')
+param embeddingsDeploymentName string = 'embeddings'
+
+@description('Name of the chat completion model')
+param embeddingsModelName string = 'text-embedding-ada-002'
+param embeddingsModelVersion string = '2'
 
 // Used for Cosmos DB
 @description('Is chat history enabled')
@@ -113,17 +113,13 @@ var cosmosSettings = union(
     ? {
         CosmosOptions__CosmosEndpoint: cosmos.outputs.endpoint
         CosmosOptions__CosmosDatabaseId: cosmosDbName
-        CosmosOptions__CosmosStructuredDataContainerId: structuredDataContainerId
-        CosmosOptions__CosmosStructuredDataContainerPartitionKey: structuredDataPartitionKey
-
-        CosmosOptions__CosmosChatHistoryContainerId: chatHistoryContainerId
-        CosmosOptions__CosmosChatHistoryContainerPartitionKey: chatHistoryPartitionKey
+        CosmosOptions__CosmosChatHistoryContainerId: containerId
+        CosmosOptions__CosmosChatHistoryContainerPartitionKey: partitionKey
       }
     : {},
   (isCosmosServerless)
     ? {
-        CosmosOptions__CosmosStructuredDataContainerRUs: structuredDataRUs
-        CosmosOptions__CosmosChatHistoryContainerRUs: chatHistoryRUs
+        CosmosOptions__CosmosChatHistoryContainerRUs: RUs
       }
     : {}
 )
@@ -174,7 +170,16 @@ module openAi 'core/ai/cognitiveservices.bicep' = {
           name: chatModelName
           version: chatModelVersion
         }
-        capacity: 30
+        capacity: 10
+      }
+      {
+        name: embeddingsDeploymentName
+        model: {
+          format: 'OpenAI'
+          name: embeddingsModelName
+          version: embeddingsModelVersion
+        }
+        capacity: 10
       }
     ]
   }
@@ -196,11 +201,12 @@ module sql 'core/database/sqldb/sqldb-server.bicep' = {
   name: 'sql'
   scope: resourceGroup
   params: {
-    serverName: sqlServerName
+    serverName: 'sql-${resourceToken}'
     sqlDBName: sqlDBName
     location: location
     administratorLogin: sqlServerAdminLogin
     administratorLoginPassword: sqlServerAdminPassword
+    principalId: principalId
   }
 }
 
@@ -216,86 +222,46 @@ module cosmos './app/db.bicep' = if (isHistoryEnabled) {
     isCosmosServerless: isCosmosServerless
     containers: [
       {
-        id: chatHistoryContainerId
-        name: chatHistoryContainerId
-        partitionKey: chatHistoryPartitionKey
-        rus: chatHistoryRUs
-      }
-      {
-        id: structuredDataContainerId
-        name: structuredDataContainerId
-        partitionKey: structuredDataPartitionKey
-        rus: structuredDataRUs
+        id: containerId
+        name: containerId
+        partitionKey: partitionKey
+        rus: RUs
       }
     ]
   }
 }
 
-module cosmosRoleAssign './app/db-rbac.bicep' = if (isHistoryEnabled) {
-  name: 'cosmos-role-assign'
+module permissions './app/permissions.bicep' = {
+  name: 'permissions'
   scope: resourceGroup
   params: {
-    accountName: cosmos.outputs.accountName
-    principalIds: [principalId, backend.outputs.identityPrincipalId]
-  }
-}
-
-module openAiRoleUser 'core/security/role.bicep' = {
-  scope: openAiResourceGroup
-  name: 'openai-role-user'
-  params: {
-    principalId: principalId
-    roleDefinitionId: '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'
-    principalType: 'User'
-  }
-}
-
-module aiDeveloperRoleUser 'core/security/role.bicep' = {
-  scope: openAiResourceGroup
-  name: 'ai-developer-role-user'
-  params: {
-    principalId: principalId
-    roleDefinitionId: '64702f94-c441-49e6-a78b-ef80e0188fee'
-    principalType: 'User'
-  }
-}
-
-// SYSTEM IDENTITIES
-
-module openAiRoleBackend 'core/security/role.bicep' = {
-  scope: openAiResourceGroup
-  name: 'openai-role-backend'
-  params: {
-    principalId: backend.outputs.identityPrincipalId
-    roleDefinitionId: '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'
-    principalType: 'ServicePrincipal'
-  }
-}
-
-module aiDeveloperRoleBackend 'core/security/role.bicep' = {
-  scope: openAiResourceGroup
-  name: 'ai-developer-role-backend'
-  params: {
-    principalId: backend.outputs.identityPrincipalId
-    roleDefinitionId: '64702f94-c441-49e6-a78b-ef80e0188fee'
-    principalType: 'ServicePrincipal'
+    isHistoryEnabled: isHistoryEnabled
+    cosmosAccountName: cosmos.outputs.accountName
+    userPrincipalId: principalId
+    appPrincipalId: backend.outputs.identityPrincipalId
   }
 }
 
 output AzureOpenAIOptions__Endpoint string = openAi.outputs.endpoint
-output AzureOpenAIOptions__Deployment string = chatDeploymentName
+output AzureOpenAIOptions__ChatDeployment string = chatDeploymentName
+output AzureOpenAIOptions__EmbeddingsDeployment string = embeddingsDeploymentName
 output AZURE_TENANT_ID string = subscription().tenantId
 
 // cosmos db
 output CosmosOptions__CosmosEndpoint string = cosmos.outputs.endpoint
 output CosmosOptions__CosmosDatabaseId string = cosmosDbName
 // chat history container
-output CosmosOptions__CosmosChatHistoryContainerId string = chatHistoryContainerId
-output CosmosOptions__CosmosChatHistoryContainerPartitionKey string = chatHistoryPartitionKey
-output CosmosOptions__CosmosChatHistoryContainerRUs int = chatHistoryRUs
-// structured data container
-output CosmosOptions__CosmosStructuredDataContainerId string = structuredDataContainerId
-output CosmosOptions__CosmosStructuredDataContainerPartitionKey string = structuredDataPartitionKey
-output CosmosOptions__CosmosStructuredDataContainerRUs int = structuredDataRUs
+output CosmosOptions__ContainerId string = containerId
+output CosmosOptions__PartitionKey string = partitionKey
+output CosmosOptions__ContainerRUs int = RUs
+
+// can't output connection strings from submodules and subscription scope prevents referencing existing resources so we construct connection string
+output ConnectionStrings__SurveysDatabase string = 'Server=tcp:${sql.outputs.sqlServerName}${environment().suffixes.sqlServerHostname},1433;Initial Catalog=${sql.outputs.sqlDBName};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;Authentication=Active Directory Managed Identity'
 
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = monitoring.outputs.applicationInsightsConnectionString
+
+// once this feature is better developed we can remove the feature flag
+output AzureOpenAIOptions__IncludeVectorSearchPlugin bool = true
+
+// not needed for chat app server but will be used for the console app
+output TextAnalyticsServiceOptions__Endpoint string = languageService.outputs.endpoint
